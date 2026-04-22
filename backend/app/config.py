@@ -10,7 +10,7 @@ LEAGUES = {
     "FL1": {"name": "Ligue 1",          "country": "France",   "api_football_id": 61,  "season": 2024},
     "CL":  {"name": "Champions League", "country": "Europe",   "api_football_id": 2,   "season": 2024},
     "EL":  {"name": "Europa League",    "country": "Europe",   "api_football_id": 3,   "season": 2024},
-    "CO1": {"name": "Liga BetPlay",     "country": "Colombia", "api_football_id": 239, "season": 2024},
+    "CO1": {"name": "Liga BetPlay",     "country": "Colombia", "api_football_id": 239, "season": 2025},
 }
 
 ODDS_SPORT_KEYS = {

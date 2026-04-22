@@ -12,14 +12,64 @@ const BASE = import.meta.env.VITE_API_URL
   : '/api'
 const api = axios.create({ baseURL: BASE })
 
+// World Cup 2026 opening match: June 11, 2026 20:00 UTC (Mexico City)
+const WC2026 = new Date('2026-06-11T20:00:00Z')
+
+const WORLD_CLOCKS = [
+  { flag: '🇨🇴', city: 'Bogotá',   tz: 'America/Bogota' },
+  { flag: '🇬🇧', city: 'Londres',  tz: 'Europe/London' },
+  { flag: '🇪🇸', city: 'Madrid',   tz: 'Europe/Madrid' },
+  { flag: '🇩🇪', city: 'Berlín',   tz: 'Europe/Berlin' },
+  { flag: '🇺🇸', city: 'New York', tz: 'America/New_York' },
+  { flag: '🇲🇽', city: 'México',   tz: 'America/Mexico_City' },
+]
+
+const TV_CHANNELS = {
+  PL:  ['ESPN', 'Star+', 'Sky Sports', 'DAZN'],
+  PD:  ['ESPN', 'Star+', 'DAZN', 'Movistar+'],
+  BL1: ['ESPN', 'Star+', 'DAZN'],
+  SA:  ['ESPN', 'Star+', 'DAZN', 'Sky Sport IT'],
+  FL1: ['ESPN', 'Star+', 'beIN Sports'],
+  CL:  ['ESPN', 'Star+', 'Movistar+', 'CBS Sports'],
+  EL:  ['ESPN', 'Star+', 'CBS Sports'],
+  CO1: ['Win Sports', 'Win Sports+', 'RCN', 'Canal 1'],
+}
+
 function useClock() {
   const [time, setTime] = useState(new Date())
   useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t) }, [])
   return time
 }
 
+function useWCCountdown(now) {
+  const diff = WC2026 - now
+  if (diff <= 0) return null
+  const d = Math.floor(diff / 86400000)
+  const h = Math.floor((diff % 86400000) / 3600000)
+  const m = Math.floor((diff % 3600000) / 60000)
+  const s = Math.floor((diff % 60000) / 1000)
+  return { d, h, m, s }
+}
+
 function LiveDot({ active = true }) {
   return <span className={`inline-block w-1.5 h-1.5 rounded-full ${active ? 'bg-emerald-400 animate-pulse' : 'bg-gray-600'}`} />
+}
+
+function WorldClockBar({ now }) {
+  const fmt = (tz) =>
+    new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: tz }).format(now)
+  return (
+    <div className="flex items-center gap-5 px-4 py-1 bg-[#060b14] border-b border-gray-800/40 text-[10px] shrink-0 overflow-x-auto">
+      <span className="text-gray-700 uppercase tracking-widest font-bold shrink-0">Hora mundial</span>
+      {WORLD_CLOCKS.map(c => (
+        <div key={c.tz} className="flex items-center gap-1.5 shrink-0">
+          <span>{c.flag}</span>
+          <span className="text-gray-500">{c.city}</span>
+          <span className="text-white font-mono font-bold">{fmt(c.tz)}</span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function NewsTickerBar({ news = [] }) {
@@ -32,7 +82,7 @@ function NewsTickerBar({ news = [] }) {
         NOTICIAS
       </div>
       <div className="overflow-hidden flex-1 relative">
-        <div className="flex gap-12 whitespace-nowrap animate-[ticker_60s_linear_infinite]">
+        <div className="flex gap-12 whitespace-nowrap animate-ticker">
           {repeated.map((t, i) => (
             <span key={i} className="text-xs text-gray-400 shrink-0">
               <span className="text-emerald-500 mr-2">●</span>{t}
@@ -46,12 +96,19 @@ function NewsTickerBar({ news = [] }) {
 
 function MatchRow({ match, leagueCode }) {
   const date = match.date ? format(parseISO(match.date), "d MMM HH:mm", { locale: es }) : '?'
+  const bogota = match.date
+    ? new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Bogota' }).format(new Date(match.date))
+    : null
   const prob = match.model_prediction
   const hasResult = match.home_goals != null
+  const channels = TV_CHANNELS[leagueCode] ?? []
   return (
     <div className={`border-b border-gray-800/40 px-3 py-2.5 hover:bg-gray-800/30 transition-colors ${match.has_value ? 'border-l-2 border-l-emerald-500' : ''}`}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] text-gray-600 w-16 shrink-0">{date}</span>
+        <div className="shrink-0 w-20">
+          <div className="text-[10px] text-gray-600">{date}</div>
+          {bogota && <div className="text-[9px] text-amber-600">🇨🇴 {bogota}</div>}
+        </div>
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <span className="text-xs text-gray-200 text-right flex-1 truncate">{match.home_team}</span>
           <span className="text-xs font-bold tabular-nums shrink-0 text-gray-400 w-10 text-center">
@@ -69,10 +126,17 @@ function MatchRow({ match, leagueCode }) {
         {match.has_value && <span className="text-[9px] text-emerald-400 font-bold shrink-0">VALUE</span>}
       </div>
       {prob && (
-        <div className="mt-1 flex h-0.5 rounded-full overflow-hidden ml-16">
+        <div className="mt-1 flex h-0.5 rounded-full overflow-hidden ml-20">
           <div className="bg-emerald-500" style={{ width: `${prob.prob_home*100}%` }} />
           <div className="bg-gray-600" style={{ width: `${prob.prob_draw*100}%` }} />
           <div className="bg-blue-500" style={{ width: `${prob.prob_away*100}%` }} />
+        </div>
+      )}
+      {channels.length > 0 && (
+        <div className="mt-1 ml-20 flex gap-1 flex-wrap">
+          {channels.map(ch => (
+            <span key={ch} className="text-[9px] text-gray-700 bg-gray-800/50 rounded px-1">📺 {ch}</span>
+          ))}
         </div>
       )}
     </div>
@@ -83,11 +147,14 @@ function NewsPanel({ news = [], loading }) {
   return (
     <div className="space-y-0 overflow-y-auto h-full">
       {loading && <div className="p-4 text-xs text-gray-600 animate-pulse">Cargando noticias...</div>}
+      {!loading && news.length === 0 && (
+        <div className="p-8 text-center text-gray-600 text-sm">Sin noticias disponibles</div>
+      )}
       {news.map((item, i) => (
         <a key={i} href={item.link} target="_blank" rel="noopener noreferrer"
           className="block border-b border-gray-800/40 px-3 py-2.5 hover:bg-gray-800/30 transition-colors group">
           <div className="flex items-start gap-2">
-            <span className="text-[9px] text-emerald-600 font-bold uppercase shrink-0 mt-0.5 w-14 truncate">{item.source}</span>
+            <span className="text-[9px] text-emerald-600 font-bold uppercase shrink-0 mt-0.5 w-16 truncate">{item.source}</span>
             <p className="text-xs text-gray-300 group-hover:text-white transition-colors leading-snug line-clamp-2">{item.title}</p>
           </div>
           {item.pub_date && (
@@ -144,7 +211,8 @@ export default function Dashboard() {
   const [activeLeague, setActiveLeague] = useState('PL')
   const [centerTab, setCenterTab] = useState('matches')
   const qc = useQueryClient()
-  const clock = useClock()
+  const now = useClock()
+  const wc = useWCCountdown(now)
 
   const { data: status, refetch: refetchStatus } = useQuery({
     queryKey: ['setup-status'],
@@ -208,9 +276,9 @@ export default function Dashboard() {
   const news = newsData?.news ?? []
 
   const centerTabs = [
-    { id: 'matches', label: '📅 Partidos' },
+    { id: 'matches',   label: '📅 Partidos' },
     { id: 'standings', label: '📊 Clasificación' },
-    { id: 'news', label: '📰 Noticias' },
+    { id: 'news',      label: '📰 Noticias' },
   ]
 
   return (
@@ -220,18 +288,30 @@ export default function Dashboard() {
       <div className="flex items-center gap-4 px-4 py-1.5 bg-gray-950 border-b border-gray-800/60 text-[11px] shrink-0">
         <div className="flex items-center gap-1.5">
           <LiveDot active={true} />
-          <span className="text-emerald-400 font-mono font-bold">{clock.toUTCString().slice(17, 25)} UTC</span>
+          <span className="text-emerald-400 font-mono font-bold">{now.toUTCString().slice(17, 25)} UTC</span>
         </div>
         <div className="h-3 w-px bg-gray-800" />
-        <span className="text-gray-500">Ligas activas: <span className="text-white font-bold">{trainedCount}/{LEAGUES.length}</span></span>
+        <span className="text-gray-500">Ligas: <span className="text-white font-bold">{trainedCount}/{LEAGUES.length}</span></span>
         <div className="h-3 w-px bg-gray-800" />
         <span className="text-gray-500">Value bets: <span className="text-emerald-400 font-bold">{valueBets.length}</span></span>
         <div className="h-3 w-px bg-gray-800" />
         <span className="text-gray-500">Arbitraje: <span className="text-amber-400 font-bold">{arbs.length}</span></span>
         <div className="h-3 w-px bg-gray-800" />
         <span className={`${hasOddsKey ? 'text-blue-400' : 'text-gray-600'}`}>
-          Odds API: {hasOddsKey ? '✓ activa' : '✗ sin clave'}
+          Odds: {hasOddsKey ? '✓' : '✗'}
         </span>
+        {wc && (
+          <>
+            <div className="h-3 w-px bg-gray-800" />
+            <div className="flex items-center gap-1.5">
+              <span className="text-yellow-500">⚽</span>
+              <span className="text-gray-500">Mundial 2026:</span>
+              <span className="font-mono font-bold text-yellow-400">
+                {wc.d}d {String(wc.h).padStart(2,'0')}h {String(wc.m).padStart(2,'0')}m {String(wc.s).padStart(2,'0')}s
+              </span>
+            </div>
+          </>
+        )}
         <div className="flex-1" />
         {anyUntrained && (
           <button onClick={() => initReal()} disabled={isInitializing}
@@ -241,11 +321,14 @@ export default function Dashboard() {
         )}
       </div>
 
+      {/* World clock bar */}
+      <WorldClockBar now={now} />
+
       {/* Main 3-column layout */}
       <div className="flex flex-1 overflow-hidden">
 
         {/* LEFT: League selector */}
-        <div className="w-48 bg-gray-950 border-r border-gray-800/60 flex flex-col shrink-0">
+        <div className="w-52 bg-gray-950 border-r border-gray-800/60 flex flex-col shrink-0">
           <div className="px-3 py-2 text-[10px] text-gray-600 uppercase tracking-widest font-bold border-b border-gray-800/60">
             Ligas
           </div>
@@ -253,6 +336,7 @@ export default function Dashboard() {
             {LEAGUES.map(l => {
               const ls = status?.leagues?.[l.code]
               const isActive = activeLeague === l.code
+              const channels = TV_CHANNELS[l.code] ?? []
               return (
                 <button key={l.code} onClick={() => setActiveLeague(l.code)}
                   className={`w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors border-b border-gray-800/30 ${
@@ -261,8 +345,9 @@ export default function Dashboard() {
                   <span className="text-base shrink-0">{l.flag}</span>
                   <div className="flex-1 min-w-0">
                     <p className={`text-xs truncate ${isActive ? 'text-white font-medium' : 'text-gray-400'}`}>{l.name}</p>
-                    {ls && (
-                      <p className="text-[10px] text-gray-700">{ls.teams_in_model} equipos</p>
+                    {ls && <p className="text-[10px] text-gray-700">{ls.teams_in_model} equipos</p>}
+                    {isActive && channels.length > 0 && (
+                      <p className="text-[9px] text-gray-700 truncate">📺 {channels.slice(0,2).join(' · ')}</p>
                     )}
                   </div>
                   <LiveDot active={ls?.model_trained} />
@@ -285,6 +370,10 @@ export default function Dashboard() {
             <div className="flex justify-between text-[11px]">
               <span className="text-gray-600">Partidos</span>
               <span className="text-white font-bold">{fixtures.length}</span>
+            </div>
+            <div className="flex justify-between text-[11px]">
+              <span className="text-gray-600">Noticias</span>
+              <span className="text-blue-400 font-bold">{news.length}</span>
             </div>
             <Link to={`/league/${activeLeague}`}
               className="block w-full text-center text-[10px] text-emerald-600 hover:text-emerald-400 mt-2 transition-colors">
@@ -321,9 +410,8 @@ export default function Dashboard() {
                     <span className="text-[10px] text-amber-500">— modelo no inicializado</span>
                   )}
                 </div>
-                {/* Header */}
                 <div className="flex items-center px-3 py-1 text-[10px] text-gray-700 border-b border-gray-800/30">
-                  <span className="w-16">Fecha</span>
+                  <span className="w-20">Fecha / 🇨🇴</span>
                   <span className="flex-1 text-right">Local</span>
                   <span className="w-10 text-center">-</span>
                   <span className="flex-1 text-left">Visitante</span>
@@ -341,7 +429,6 @@ export default function Dashboard() {
                   <MatchRow key={i} match={m} leagueCode={activeLeague} />
                 ))}
 
-                {/* Value bets section */}
                 {allEvents.length > 0 && (
                   <>
                     <div className="px-3 py-2 border-t border-gray-800/60 bg-emerald-950/10 text-[10px] text-emerald-600 uppercase tracking-widest font-bold">
@@ -387,9 +474,11 @@ export default function Dashboard() {
                           standings.length - i <= 3 ? 'border-l-2 border-l-red-500' : ''
                         }`}>
                           <td className="py-2 px-2 text-gray-600">{row.position}</td>
-                          <td className="py-2 px-2 flex items-center gap-2">
-                            {row.crest && <img src={row.crest} alt="" className="w-4 h-4 object-contain" />}
-                            <span className="text-gray-200">{row.team}</span>
+                          <td className="py-2 px-2">
+                            <div className="flex items-center gap-2">
+                              {row.crest && <img src={row.crest} alt="" className="w-4 h-4 object-contain" />}
+                              <span className="text-gray-200">{row.team}</span>
+                            </div>
                           </td>
                           <td className="text-center py-2 px-1 text-gray-500">{row.played}</td>
                           <td className="text-center py-2 px-1 text-emerald-400">{row.won}</td>
@@ -418,7 +507,6 @@ export default function Dashboard() {
 
         {/* RIGHT: Value bets + Arbitrage */}
         <div className="w-72 bg-gray-950 border-l border-gray-800/60 flex flex-col shrink-0 overflow-hidden">
-          {/* Value bets */}
           <div className="shrink-0 px-3 py-2 border-b border-gray-800/60 flex items-center justify-between">
             <span className="text-[10px] text-emerald-400 uppercase tracking-widest font-bold">⚡ Value Bets</span>
             <span className="text-[10px] text-gray-600">{valueBets.length} detectados</span>
@@ -441,7 +529,6 @@ export default function Dashboard() {
             ))}
           </div>
 
-          {/* Arbitrage */}
           <div className="shrink-0 px-3 py-2 border-t border-b border-amber-500/20 flex items-center justify-between bg-amber-950/10">
             <span className="text-[10px] text-amber-400 uppercase tracking-widest font-bold">🔀 Arbitraje</span>
             <span className="text-[10px] text-gray-600">{arbs.length} oportunidades</span>

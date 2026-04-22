@@ -6,12 +6,16 @@ from fastapi import APIRouter
 router = APIRouter(prefix="/news", tags=["news"])
 
 RSS_FEEDS = [
-    {"name": "BBC Sport",    "url": "https://feeds.bbci.co.uk/sport/football/rss.xml"},
-    {"name": "Sky Sports",   "url": "https://www.skysports.com/rss/12040"},
-    {"name": "Goal.com",     "url": "https://www.goal.com/feeds/en/news"},
-    {"name": "ESPN FC",      "url": "https://www.espn.com/espn/rss/soccer/news"},
-    {"name": "Marca",        "url": "https://e00-marca.uecdn.es/rss/futbol/internacional.xml"},
-    {"name": "AS",           "url": "https://as.com/rss/tags/futbol.xml"},
+    {"name": "BBC Sport",       "url": "https://feeds.bbci.co.uk/sport/football/rss.xml"},
+    {"name": "Sky Sports",      "url": "https://www.skysports.com/rss/12040"},
+    {"name": "Goal.com",        "url": "https://www.goal.com/feeds/en/news"},
+    {"name": "ESPN FC",         "url": "https://www.espn.com/espn/rss/soccer/news"},
+    {"name": "Marca",           "url": "https://e00-marca.uecdn.es/rss/futbol/internacional.xml"},
+    {"name": "AS",              "url": "https://as.com/rss/tags/futbol.xml"},
+    {"name": "ESPN Deportes",   "url": "https://www.espndeportes.espn.com/espndeportes/rss/noticias?seccion=futbol"},
+    {"name": "Mundo Deportivo", "url": "https://www.mundodeportivo.com/rss/futbol.xml"},
+    {"name": "Sport",           "url": "https://www.sport.es/rss/futbol.xml"},
+    {"name": "GolCaracol",      "url": "https://golcaracol.com/rss/portada"},
 ]
 
 _cache: dict = {"data": [], "ts": 0}
@@ -37,7 +41,7 @@ def _parse_feed(xml_bytes: bytes, source: str) -> list[dict]:
 
 
 @router.get("/")
-async def get_news(limit: int = 30):
+async def get_news(limit: int = 40):
     global _cache
     if time.time() - _cache["ts"] < CACHE_TTL and _cache["data"]:
         return {"news": _cache["data"][:limit], "cached": True}
