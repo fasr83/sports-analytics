@@ -6,9 +6,9 @@ import MatchPage from './pages/MatchPage'
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-gray-950">
+    <div className="min-h-screen bg-[#080d18]">
       <Navbar />
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="max-w-7xl mx-auto px-4 py-8">
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/league/:code" element={<LeaguePage />} />
