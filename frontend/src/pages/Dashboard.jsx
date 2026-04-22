@@ -39,6 +39,231 @@ const TV_CHANNELS = {
   CO1: ['Win Sports', 'Win Sports+', 'RCN'],
 }
 
+/* ─── Bookmakers by country ─── */
+const BOOKMAKERS = {
+  CO: {
+    label: '🇨🇴 Colombia',
+    books: [
+      { name: 'Betplay',    url: 'https://betplay.com.co',        logo: '🎯' },
+      { name: 'Wplay',      url: 'https://wplay.co',              logo: '🃏' },
+      { name: 'Codere',     url: 'https://apuestas.codere.co',    logo: '🔴' },
+      { name: 'Luckia',     url: 'https://luckia.co',             logo: '🍀' },
+      { name: 'Rivalo',     url: 'https://www.rivalo.com',        logo: '⚡' },
+      { name: 'Rush Street', url: 'https://rushstreet.com',       logo: '🏙️' },
+    ],
+  },
+  ES: {
+    label: '🇪🇸 España',
+    books: [
+      { name: 'Bet365',     url: 'https://www.bet365.es',         logo: '🟢' },
+      { name: 'Codere',     url: 'https://apuestas.codere.es',    logo: '🔴' },
+      { name: 'Bwin',       url: 'https://sports.bwin.es',        logo: '🟠' },
+      { name: 'Betfair',    url: 'https://betfair.es',            logo: '⚫' },
+      { name: '888Sport',   url: 'https://888sport.es',           logo: '🔵' },
+      { name: 'Unibet',     url: 'https://www.unibet.es',         logo: '🟣' },
+    ],
+  },
+  MX: {
+    label: '🇲🇽 México',
+    books: [
+      { name: 'Betcris',    url: 'https://www.betcris.mx',        logo: '🎯' },
+      { name: 'Caliente',   url: 'https://caliente.mx',           logo: '🔥' },
+      { name: 'Codere',     url: 'https://apuestas.codere.mx',    logo: '🔴' },
+      { name: '1xBet',      url: 'https://1xbet.com/es',          logo: '🟡' },
+      { name: 'Betsson',    url: 'https://www.betsson.mx',        logo: '🔵' },
+      { name: 'Bet365',     url: 'https://www.bet365.mx',         logo: '🟢' },
+    ],
+  },
+  AR: {
+    label: '🇦🇷 Argentina',
+    books: [
+      { name: 'Betsson',    url: 'https://www.betsson.com.ar',    logo: '🔵' },
+      { name: '888Sport',   url: 'https://888sport.com',          logo: '🔵' },
+      { name: 'Codere',     url: 'https://apuestas.codere.com.ar',logo: '🔴' },
+      { name: 'Bet365',     url: 'https://www.bet365.com',        logo: '🟢' },
+      { name: '1xBet',      url: 'https://1xbet.com/es',          logo: '🟡' },
+      { name: 'Bwin',       url: 'https://sports.bwin.es',        logo: '🟠' },
+    ],
+  },
+  US: {
+    label: '🇺🇸 USA',
+    books: [
+      { name: 'DraftKings', url: 'https://sportsbook.draftkings.com', logo: '🏈' },
+      { name: 'FanDuel',    url: 'https://sportsbook.fanduel.com',    logo: '⚡' },
+      { name: 'BetMGM',     url: 'https://sports.betmgm.com',        logo: '🎰' },
+      { name: 'Caesars',    url: 'https://sportsbook.caesars.com',    logo: '👑' },
+      { name: 'PointsBet',  url: 'https://pointsbet.com',            logo: '🔵' },
+      { name: 'bet365',     url: 'https://www.bet365.com',           logo: '🟢' },
+    ],
+  },
+  UK: {
+    label: '🇬🇧 Reino Unido',
+    books: [
+      { name: 'Bet365',     url: 'https://www.bet365.com',        logo: '🟢' },
+      { name: 'William Hill',url: 'https://www.williamhill.com',  logo: '🔵' },
+      { name: 'Betfair',    url: 'https://www.betfair.com',       logo: '⚫' },
+      { name: 'Ladbrokes',  url: 'https://www.ladbrokes.com',     logo: '🔴' },
+      { name: 'Paddy Power',url: 'https://www.paddypower.com',    logo: '🟢' },
+      { name: 'Sky Bet',    url: 'https://www.skybet.com',        logo: '🔵' },
+    ],
+  },
+  INTL: {
+    label: '🌍 Internacional',
+    books: [
+      { name: 'Bet365',     url: 'https://www.bet365.com',        logo: '🟢' },
+      { name: '1xBet',      url: 'https://1xbet.com/es',          logo: '🟡' },
+      { name: 'Betway',     url: 'https://betway.com',            logo: '🟣' },
+      { name: 'Unibet',     url: 'https://www.unibet.com',        logo: '🟣' },
+      { name: 'Pinnacle',   url: 'https://www.pinnacle.com/es',   logo: '⚡' },
+      { name: 'Bwin',       url: 'https://sports.bwin.com',       logo: '🟠' },
+    ],
+  },
+}
+
+/* ─── Bet Slip Panel ─── */
+function BetSlipPanel({ slip, onRemove, onClear, onStakeChange, stake }) {
+  const [country, setCountry] = useState('CO')
+  const [open, setOpen] = useState(true)
+
+  const combinedOdds = slip.reduce((acc, b) => acc * (b.odds || 1), 1)
+  const potentialReturn = stake * combinedOdds
+  const books = BOOKMAKERS[country]?.books ?? []
+
+  return (
+    <div className="fixed bottom-8 right-4 z-50 w-80 shadow-2xl shadow-black/60 rounded-2xl overflow-hidden border border-gray-700/60">
+      {/* Header */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-emerald-700 to-emerald-600 text-white"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-lg">🎫</span>
+          <span className="font-black text-sm uppercase tracking-wide">Mi Ticket</span>
+          {slip.length > 0 && (
+            <span className="bg-white text-emerald-700 font-black text-xs px-2 py-0.5 rounded-full">{slip.length}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {slip.length > 0 && combinedOdds > 1 && (
+            <span className="text-emerald-200 font-mono font-bold text-sm">@{combinedOdds.toFixed(2)}</span>
+          )}
+          <span className="text-emerald-200 text-xs">{open ? '▼' : '▲'}</span>
+        </div>
+      </button>
+
+      {open && (
+        <div className="bg-[#07101f] flex flex-col max-h-[70vh]">
+
+          {/* Empty state */}
+          {slip.length === 0 && (
+            <div className="p-6 text-center">
+              <p className="text-3xl mb-2">🎯</p>
+              <p className="text-gray-400 text-sm font-medium">Selecciona cuotas de los partidos</p>
+              <p className="text-gray-600 text-xs mt-1">Haz clic en 1 · X · 2 para agregar</p>
+            </div>
+          )}
+
+          {/* Selections */}
+          {slip.length > 0 && (
+            <div className="overflow-y-auto flex-1">
+              {slip.map((b, i) => (
+                <div key={b.id} className="flex items-start gap-2 px-3 py-2.5 border-b border-gray-800/50 hover:bg-white/[0.02]">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] text-gray-500 truncate">{b.leagueName}</p>
+                    <p className="text-xs text-white font-semibold truncate leading-tight">{b.homeTeam} vs {b.awayTeam}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded ${
+                        b.pick === '1' ? 'bg-emerald-700 text-white' :
+                        b.pick === 'X' ? 'bg-gray-600 text-white' :
+                        'bg-blue-700 text-white'
+                      }`}>{b.pick}</span>
+                      <span className="text-[10px] text-gray-400">{b.pickLabel}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <button onClick={() => onRemove(b.id)} className="text-gray-600 hover:text-red-400 transition-colors text-sm leading-none">✕</button>
+                    <span className="text-emerald-300 font-black text-sm font-mono">
+                      {b.odds ? b.odds.toFixed(2) : '—'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {slip.length > 0 && (
+            <>
+              {/* Combined odds summary */}
+              <div className="px-3 py-2.5 bg-black/30 border-t border-gray-800/50">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Cuota combinada</span>
+                  <span className="text-emerald-300 font-black text-base font-mono">@{combinedOdds.toFixed(2)}</span>
+                </div>
+                {/* Stake input */}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Apuesta</span>
+                  <div className="flex-1 flex items-center gap-1">
+                    {[5, 10, 20, 50].map(v => (
+                      <button key={v} onClick={() => onStakeChange(v)}
+                        className={`flex-1 text-[10px] font-bold py-1 rounded transition-colors ${stake === v ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+                        ${v}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="number"
+                    value={stake}
+                    onChange={e => onStakeChange(Number(e.target.value))}
+                    className="flex-1 bg-gray-800 border border-gray-700 text-white text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-emerald-500"
+                    placeholder="Monto..."
+                    min="1"
+                  />
+                  <span className="text-[10px] text-gray-500">USD</span>
+                </div>
+                <div className="flex justify-between items-center bg-emerald-950/40 rounded-xl px-3 py-2 border border-emerald-800/30">
+                  <span className="text-xs text-gray-300 font-medium">Ganancia potencial</span>
+                  <span className="text-emerald-300 font-black text-lg font-mono">${potentialReturn.toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Clear button */}
+              <div className="px-3 pb-2 pt-1">
+                <button onClick={onClear} className="w-full text-[10px] text-gray-600 hover:text-red-400 transition-colors py-1">
+                  Limpiar ticket
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Country selector + Bookmakers */}
+          <div className="border-t border-gray-800/50 px-3 py-3 bg-black/20">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Apostar en</span>
+              <select value={country} onChange={e => setCountry(e.target.value)}
+                className="flex-1 bg-gray-800/80 border border-gray-700/50 text-gray-200 text-[10px] rounded-lg px-2 py-1 focus:outline-none focus:border-emerald-500">
+                {Object.entries(BOOKMAKERS).map(([k, v]) => (
+                  <option key={k} value={k}>{v.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-3 gap-1">
+              {books.map(bk => (
+                <a key={bk.name} href={bk.url} target="_blank" rel="noopener noreferrer"
+                  className="flex flex-col items-center gap-0.5 py-2 px-1 bg-gray-800/60 hover:bg-emerald-900/40 border border-gray-700/40 hover:border-emerald-700/50 rounded-xl transition-all group">
+                  <span className="text-lg leading-none">{bk.logo}</span>
+                  <span className="text-[9px] text-gray-400 group-hover:text-emerald-300 text-center font-medium leading-tight transition-colors">{bk.name}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function useClock() {
   const [t, setT] = useState(new Date())
   useEffect(() => { const id = setInterval(() => setT(new Date()), 1000); return () => clearInterval(id) }, [])
@@ -102,8 +327,31 @@ function Ticker({ news }) {
   )
 }
 
+/* ─── Odds button ─── */
+function OddsBtn({ label, odds, prob, color, selected, onClick }) {
+  const displayOdds = odds > 1 ? odds.toFixed(2) : prob > 0 ? (1 / prob).toFixed(2) : '—'
+  const colors = {
+    home: selected
+      ? 'bg-emerald-500 text-white ring-2 ring-emerald-300 shadow-lg shadow-emerald-900/50'
+      : 'bg-emerald-950/60 hover:bg-emerald-700/60 text-emerald-300 border border-emerald-800/50 hover:border-emerald-500',
+    draw: selected
+      ? 'bg-gray-500 text-white ring-2 ring-gray-300 shadow-lg shadow-gray-900/50'
+      : 'bg-gray-800/60 hover:bg-gray-600/60 text-gray-300 border border-gray-700/50 hover:border-gray-400',
+    away: selected
+      ? 'bg-blue-500 text-white ring-2 ring-blue-300 shadow-lg shadow-blue-900/50'
+      : 'bg-blue-950/60 hover:bg-blue-700/60 text-blue-300 border border-blue-800/50 hover:border-blue-500',
+  }
+  return (
+    <button onClick={e => { e.stopPropagation(); onClick() }}
+      className={`flex flex-col items-center justify-center rounded-xl px-2 py-1.5 transition-all min-w-[52px] ${colors[color]}`}>
+      <span className="text-[9px] font-black uppercase tracking-widest opacity-80">{label}</span>
+      <span className="text-sm font-black font-mono leading-tight">{displayOdds}</span>
+    </button>
+  )
+}
+
 /* ─── Match row ─── */
-function MatchRow({ m, leagueCode, bkData }) {
+function MatchRow({ m, leagueCode, bkData, slip, onAddBet }) {
   const [open, setOpen] = useState(false)
   const date = m.date ? format(parseISO(m.date), 'd MMM HH:mm', { locale: es }) : '?'
   const col = m.date ? new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Bogota' }).format(new Date(m.date)) : null
@@ -111,54 +359,98 @@ function MatchRow({ m, leagueCode, bkData }) {
   const ts = m.top_scores
   const hasResult = m.home_goals != null
   const chs = TV_CHANNELS[leagueCode] ?? []
+  const lg = LEAGUES.find(l => l.code === leagueCode)
 
   const bestScore = ts?.[0]
   const maxProb = p ? Math.max(p.prob_home, p.prob_draw, p.prob_away) : 0
-  const pick = p ? (p.prob_home === maxProb ? '1' : p.prob_away === maxProb ? '2' : 'X') : null
-  const pickBg = { '1': 'bg-emerald-600', 'X': 'bg-gray-600', '2': 'bg-blue-600' }
+  const aiPick = p ? (p.prob_home === maxProb ? '1' : p.prob_away === maxProb ? '2' : 'X') : null
 
-  // Bookmaker odds from value-bets data
+  // Best bookmaker odds (real if available, implied from model if not)
   const bks = bkData?.bookmakers ?? []
+  const bestHome = bks.length ? Math.max(...bks.map(b => b.odds_home || 0)) : 0
+  const bestDraw = bks.length ? Math.max(...bks.map(b => b.odds_draw || 0)) : 0
+  const bestAway = bks.length ? Math.max(...bks.map(b => b.odds_away || 0)) : 0
+
+  const matchId = `${m.home_team}|${m.away_team}|${leagueCode}`
+  const selectedPick = slip?.find(s => s.id === matchId)?.pick
+
+  const addToSlip = (pick) => {
+    if (!onAddBet) return
+    const pickLabels = { '1': m.home_team, 'X': 'Empate', '2': m.away_team }
+    const odds = pick === '1' ? (bestHome || (p?.prob_home > 0 ? 1 / p.prob_home : 0))
+               : pick === 'X' ? (bestDraw || (p?.prob_draw > 0 ? 1 / p.prob_draw : 0))
+               : (bestAway || (p?.prob_away > 0 ? 1 / p.prob_away : 0))
+    onAddBet({
+      id: matchId,
+      homeTeam: m.home_team,
+      awayTeam: m.away_team,
+      leagueName: lg?.name ?? leagueCode,
+      pick,
+      pickLabel: pickLabels[pick],
+      odds: Math.max(odds, 1.01),
+    })
+  }
 
   return (
     <div className={`border-b border-gray-800/40 transition-colors ${m.has_value ? 'border-l-[3px] border-l-emerald-400' : 'border-l-[3px] border-l-transparent'} ${open ? 'bg-[#0c1425]' : 'hover:bg-white/[0.025]'}`}>
-      <button className="w-full text-left px-4 py-3" onClick={() => setOpen(o => !o)}>
-        <div className="flex items-center gap-3">
-          {/* Date col */}
-          <div className="w-20 shrink-0">
-            <p className="text-[10px] text-gray-400 font-medium">{date}</p>
+      <div className="px-3 py-3">
+        <div className="flex items-center gap-2">
+          {/* Date */}
+          <div className="w-16 shrink-0">
+            <p className="text-[10px] text-gray-400 font-medium leading-tight">{date}</p>
             {col && <p className="text-[9px] text-yellow-500/80 font-medium">🇨🇴 {col}</p>}
           </div>
+
           {/* Teams */}
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <span className="text-sm text-white text-right flex-1 truncate font-semibold">{m.home_team}</span>
-            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded shrink-0 ${hasResult ? 'bg-gray-700 text-white' : 'text-gray-500'}`}>
-              {hasResult ? `${m.home_goals}–${m.away_goals}` : 'VS'}
-            </span>
-            <span className="text-sm text-white text-left flex-1 truncate font-semibold">{m.away_team}</span>
+          <div className="flex flex-col flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-white font-semibold flex-1 truncate text-right">{m.home_team}</span>
+              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded shrink-0 ${hasResult ? 'bg-gray-700 text-white' : 'text-gray-600'}`}>
+                {hasResult ? `${m.home_goals}–${m.away_goals}` : 'vs'}
+              </span>
+              <span className="text-xs text-white font-semibold flex-1 truncate">{m.away_team}</span>
+            </div>
+            {/* Prob bar */}
+            {p && (
+              <div className="mt-1.5 flex h-1 rounded-full overflow-hidden gap-0.5">
+                <div className="bg-emerald-500 rounded-l-full" style={{ width: `${p.prob_home * 100}%` }} />
+                <div className="bg-gray-600" style={{ width: `${p.prob_draw * 100}%` }} />
+                <div className="bg-blue-500 rounded-r-full ml-auto" style={{ width: `${p.prob_away * 100}%` }} />
+              </div>
+            )}
           </div>
-          {/* Probs */}
+
+          {/* Odds buttons — always shown, always clickable */}
           {p && (
-            <div className="flex gap-1 shrink-0">
-              <span className="text-xs text-emerald-400 w-9 text-center font-bold">{(p.prob_home * 100).toFixed(0)}%</span>
-              <span className="text-xs text-gray-500 w-9 text-center">{(p.prob_draw * 100).toFixed(0)}%</span>
-              <span className="text-xs text-blue-400 w-9 text-center font-bold">{(p.prob_away * 100).toFixed(0)}%</span>
+            <div className="flex gap-1.5 shrink-0">
+              <OddsBtn label="1" odds={bestHome} prob={p.prob_home} color="home"
+                selected={selectedPick === '1'} onClick={() => addToSlip('1')} />
+              <OddsBtn label="X" odds={bestDraw} prob={p.prob_draw} color="draw"
+                selected={selectedPick === 'X'} onClick={() => addToSlip('X')} />
+              <OddsBtn label="2" odds={bestAway} prob={p.prob_away} color="away"
+                selected={selectedPick === '2'} onClick={() => addToSlip('2')} />
             </div>
           )}
-          {/* Pick badge */}
-          {pick && <span className={`text-[10px] font-black w-6 h-6 rounded flex items-center justify-center text-white shrink-0 ${pickBg[pick]}`}>{pick}</span>}
-          {m.has_value && <span className="text-[9px] font-bold px-1.5 py-0.5 bg-emerald-500 text-black rounded shrink-0">VALUE</span>}
-          <span className="text-gray-600 text-[10px] shrink-0 ml-1">{open ? '▲' : '▼'}</span>
-        </div>
-        {/* Prob bar */}
-        {p && (
-          <div className="mt-2 flex h-1.5 rounded-full overflow-hidden ml-20 gap-0.5">
-            <div className="bg-emerald-500 rounded-l-full" style={{ width: `${p.prob_home * 100}%` }} />
-            <div className="bg-gray-600" style={{ width: `${p.prob_draw * 100}%` }} />
-            <div className="bg-blue-500 rounded-r-full ml-auto" style={{ width: `${p.prob_away * 100}%` }} />
+
+          {/* AI pick + value badges */}
+          <div className="flex flex-col items-center gap-1 shrink-0">
+            {aiPick && (
+              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
+                aiPick==='1' ? 'bg-emerald-900 text-emerald-300' :
+                aiPick==='X' ? 'bg-gray-800 text-gray-300' :
+                'bg-blue-900 text-blue-300'}`}>
+                IA: {aiPick}
+              </span>
+            )}
+            {m.has_value && <span className="text-[8px] font-black px-1.5 py-0.5 bg-emerald-500 text-black rounded">VALUE</span>}
           </div>
-        )}
-      </button>
+
+          {/* Expand toggle */}
+          <button onClick={() => setOpen(o => !o)} className="shrink-0 w-6 h-6 rounded-lg bg-gray-800/60 hover:bg-gray-700 flex items-center justify-center text-gray-500 hover:text-white transition-colors text-[10px]">
+            {open ? '▲' : '▼'}
+          </button>
+        </div>
+      </div>
 
       {/* Expanded panel */}
       {open && (
@@ -964,9 +1256,25 @@ function ArbCard({ arb }) {
 export default function Dashboard() {
   const [activeLeague, setActiveLeague] = useState('PL')
   const [tab, setTab] = useState('matches')
+  const [betSlip, setBetSlip] = useState([])
+  const [stake, setStake] = useState(10)
   const qc = useQueryClient()
   const now = useClock()
   const wc  = useWCCountdown(now)
+
+  const addBet = (bet) => {
+    setBetSlip(prev => {
+      const exists = prev.find(b => b.id === bet.id)
+      if (exists) {
+        // If same pick, remove it (toggle); if different pick, replace
+        if (exists.pick === bet.pick) return prev.filter(b => b.id !== bet.id)
+        return prev.map(b => b.id === bet.id ? bet : b)
+      }
+      return [...prev, bet]
+    })
+  }
+  const removeBet = (id) => setBetSlip(prev => prev.filter(b => b.id !== id))
+  const clearSlip = () => setBetSlip([])
 
   const { data: status, refetch: refetchStatus } = useQuery({
     queryKey: ['setup-status'],
@@ -1173,7 +1481,7 @@ export default function Dashboard() {
                   ? <div className="p-12 text-center text-gray-400 text-sm">{initing ? '⏳ Cargando datos…' : 'Sin partidos. Inicializa las ligas.'}</div>
                   : fixtures.map((m, i) => {
                       const bkData = vbByMatch[`${m.home_team}|${m.away_team}`]
-                      return <MatchRow key={i} m={m} leagueCode={activeLeague} bkData={bkData} />
+                      return <MatchRow key={i} m={m} leagueCode={activeLeague} bkData={bkData} slip={betSlip} onAddBet={addBet} />
                     })
                 }
                 {allEvents.length > 0 && (
@@ -1181,7 +1489,7 @@ export default function Dashboard() {
                     <div className="px-4 py-2 bg-emerald-950/20 border-t border-emerald-800/30 text-[10px] text-emerald-300 uppercase tracking-widest font-black">
                       ⚡ Value bets detectados — {valueBets.length}/{allEvents.length} con ventaja
                     </div>
-                    {allEvents.map((m, i) => <MatchRow key={i} m={m} leagueCode={activeLeague} bkData={m} />)}
+                    {allEvents.map((m, i) => <MatchRow key={i} m={m} leagueCode={activeLeague} bkData={m} slip={betSlip} onAddBet={addBet} />)}
                   </>
                 )}
               </div>
@@ -1248,6 +1556,15 @@ export default function Dashboard() {
 
       {/* ── Ticker ── */}
       <Ticker news={news} />
+
+      {/* ── Floating Bet Slip ── */}
+      <BetSlipPanel
+        slip={betSlip}
+        onRemove={removeBet}
+        onClear={clearSlip}
+        onStakeChange={setStake}
+        stake={stake}
+      />
     </div>
   )
 }
