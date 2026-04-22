@@ -4,6 +4,7 @@ import axios from 'axios'
 import { Link } from 'react-router-dom'
 import { LEAGUES } from '../utils/odds'
 import { useNews } from '../hooks/useNews'
+import { useYouTube } from '../hooks/useYouTube'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -190,6 +191,92 @@ function ValueBetCard({ event, leagueCode }) {
   )
 }
 
+function YouTubePanel({ videos = [], loading }) {
+  const [playing, setPlaying] = useState(null)
+  if (loading) return <div className="p-6 text-xs text-gray-600 animate-pulse text-center">Cargando canales...</div>
+  if (!videos.length) return <div className="p-8 text-center text-gray-600 text-sm">Sin videos disponibles</div>
+
+  const CHANNEL_COLORS = {
+    'GolCaracol': 'text-yellow-400', 'Win Sports': 'text-blue-400',
+    'MARCA': 'text-red-400', 'AS': 'text-orange-400',
+    'ESPN Deportes': 'text-red-500', 'FIFA': 'text-blue-300',
+    'UEFA': 'text-indigo-400', 'Premier League': 'text-purple-400',
+    'LaLiga': 'text-orange-300', 'Bundesliga': 'text-red-300',
+  }
+
+  return (
+    <div className="h-full overflow-y-auto">
+      {playing && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setPlaying(null)}>
+          <div className="w-full max-w-3xl aspect-video" onClick={e => e.stopPropagation()}>
+            <iframe
+              src={playing}
+              className="w-full h-full rounded-lg"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+          <button onClick={() => setPlaying(null)} className="absolute top-4 right-4 text-white text-2xl font-bold">✕</button>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-0">
+        {videos.map((v, i) => (
+          <button key={i} onClick={() => setPlaying(v.embed)}
+            className="flex flex-col border-b border-r border-gray-800/40 hover:bg-gray-800/30 transition-colors text-left group overflow-hidden">
+            <div className="relative w-full aspect-video bg-gray-900 overflow-hidden">
+              <img src={v.thumbnail} alt={v.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
+                <div className="w-10 h-10 rounded-full bg-red-600 flex items-center justify-center">
+                  <span className="text-white text-lg ml-1">▶</span>
+                </div>
+              </div>
+            </div>
+            <div className="p-2 flex-1">
+              <p className={`text-[10px] font-bold uppercase tracking-wide mb-1 ${CHANNEL_COLORS[v.channel] ?? 'text-gray-500'}`}>{v.channel}</p>
+              <p className="text-xs text-gray-300 line-clamp-2 leading-snug">{v.title}</p>
+              {v.published && (
+                <p className="text-[10px] text-gray-700 mt-1">{v.published.slice(0, 10)}</p>
+              )}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function FichajesPanel({ news = [], loading }) {
+  const transfers = news.filter(n =>
+    /fichaj|transfer|signe|traspas|refuerzo|contrat|mercado|pase/i.test(n.title + ' ' + n.description)
+  )
+  const items = transfers.length > 0 ? transfers : news
+  return (
+    <div className="h-full overflow-y-auto">
+      {loading && <div className="p-4 text-xs text-gray-600 animate-pulse">Cargando mercado de pases...</div>}
+      {!loading && items.length === 0 && (
+        <div className="p-8 text-center text-gray-600 text-sm">Sin noticias de fichajes</div>
+      )}
+      <div className="px-3 py-2 border-b border-gray-800/40 bg-gray-900/30 text-[10px] text-gray-600 uppercase tracking-widest">
+        🔄 Mercado de pases · Transferencias
+      </div>
+      {items.map((item, i) => (
+        <a key={i} href={item.link} target="_blank" rel="noopener noreferrer"
+          className="flex gap-3 border-b border-gray-800/40 px-3 py-3 hover:bg-gray-800/30 transition-colors group">
+          <div className="shrink-0 w-8 h-8 rounded bg-emerald-900/40 flex items-center justify-center text-lg">🔄</div>
+          <div className="flex-1 min-w-0">
+            <p className={`text-[9px] font-bold uppercase mb-0.5 ${
+              item.source === 'GolCaracol' ? 'text-yellow-500' :
+              item.source === 'MARCA' ? 'text-red-400' : 'text-emerald-600'
+            }`}>{item.source}</p>
+            <p className="text-xs text-gray-300 group-hover:text-white line-clamp-2 leading-snug">{item.title}</p>
+            {item.pub_date && <p className="text-[10px] text-gray-700 mt-0.5">{item.pub_date.slice(0, 16)}</p>}
+          </div>
+        </a>
+      ))}
+    </div>
+  )
+}
+
 function ArbCard({ arb }) {
   return (
     <div className="border-b border-amber-500/20 px-3 py-3 hover:bg-amber-950/20 transition-colors border-l-2 border-l-amber-400">
@@ -262,6 +349,7 @@ export default function Dashboard() {
   })
 
   const { data: newsData, isLoading: loadingNews } = useNews()
+  const { data: ytData, isLoading: loadingYT } = useYouTube()
 
   const { mutate: initReal, isPending: isInitializing } = useMutation({
     mutationFn: () => api.post('/setup/init-real').then(r => r.data),
@@ -274,11 +362,14 @@ export default function Dashboard() {
   const fixtures = upcomingPred?.fixtures ?? matchesData?.matches ?? []
   const standings = standingsData?.standings ?? []
   const news = newsData?.news ?? []
+  const videos = ytData?.videos ?? []
 
   const centerTabs = [
     { id: 'matches',   label: '📅 Partidos' },
     { id: 'standings', label: '📊 Clasificación' },
     { id: 'news',      label: '📰 Noticias' },
+    { id: 'youtube',   label: '📺 Canales' },
+    { id: 'fichajes',  label: '🔄 Fichajes' },
   ]
 
   return (
@@ -501,6 +592,16 @@ export default function Dashboard() {
             {/* News tab */}
             {centerTab === 'news' && (
               <NewsPanel news={news} loading={loadingNews} />
+            )}
+
+            {/* YouTube tab */}
+            {centerTab === 'youtube' && (
+              <YouTubePanel videos={videos} loading={loadingYT} />
+            )}
+
+            {/* Fichajes tab */}
+            {centerTab === 'fichajes' && (
+              <FichajesPanel news={news} loading={loadingNews} />
             )}
           </div>
         </div>
