@@ -3,14 +3,14 @@ from pydantic_settings import BaseSettings
 # All leagues use API-Football v3 (api-sports.io)
 # season = year the season started (2025 = 2025/26)
 LEAGUES = {
-    "PL":  {"name": "Premier League",   "country": "England",  "api_football_id": 39,  "season": 2025},
-    "PD":  {"name": "La Liga",          "country": "Spain",    "api_football_id": 140, "season": 2025},
-    "BL1": {"name": "Bundesliga",       "country": "Germany",  "api_football_id": 78,  "season": 2025},
-    "SA":  {"name": "Serie A",          "country": "Italy",    "api_football_id": 135, "season": 2025},
-    "FL1": {"name": "Ligue 1",          "country": "France",   "api_football_id": 61,  "season": 2025},
-    "CL":  {"name": "Champions League", "country": "Europe",   "api_football_id": 2,   "season": 2025},
-    "EL":  {"name": "Europa League",    "country": "Europe",   "api_football_id": 3,   "season": 2025},
-    "CO1": {"name": "Liga BetPlay",     "country": "Colombia", "api_football_id": 239, "season": 2025},
+    "PL":  {"name": "Premier League",   "country": "England",  "api_football_id": 39,  "season": 2024},
+    "PD":  {"name": "La Liga",          "country": "Spain",    "api_football_id": 140, "season": 2024},
+    "BL1": {"name": "Bundesliga",       "country": "Germany",  "api_football_id": 78,  "season": 2024},
+    "SA":  {"name": "Serie A",          "country": "Italy",    "api_football_id": 135, "season": 2024},
+    "FL1": {"name": "Ligue 1",          "country": "France",   "api_football_id": 61,  "season": 2024},
+    "CL":  {"name": "Champions League", "country": "Europe",   "api_football_id": 2,   "season": 2024},
+    "EL":  {"name": "Europa League",    "country": "Europe",   "api_football_id": 3,   "season": 2024},
+    "CO1": {"name": "Liga BetPlay",     "country": "Colombia", "api_football_id": 239, "season": 2024},
 }
 
 ODDS_SPORT_KEYS = {
