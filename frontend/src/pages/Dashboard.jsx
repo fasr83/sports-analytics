@@ -208,6 +208,75 @@ function StandingsTab({ standings, leagueName }) {
 }
 
 /* ─── Team comparison ─── */
+function StatDuel({ label, vA, vB, nameA, nameB, higherIsBetter = true, format: fmt = v => v, proOnly = false }) {
+  const numA = parseFloat(vA) || 0
+  const numB = parseFloat(vB) || 0
+  const total = numA + numB || 1
+  const pctA = (numA / total) * 100
+  const pctB = (numB / total) * 100
+  const winsA = higherIsBetter ? numA > numB : numA < numB
+  const winsB = higherIsBetter ? numB > numA : numB < numA
+  return (
+    <div className={`py-2.5 px-4 border-b border-gray-800/20 ${proOnly ? 'opacity-40' : ''}`}>
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className={`text-sm font-bold w-16 text-right tabular-nums ${winsA ? 'text-emerald-400' : 'text-gray-400'}`}>{fmt(vA)}</span>
+        <div className="flex flex-1 h-1.5 rounded-full overflow-hidden bg-gray-800 gap-px">
+          <div className="bg-emerald-500 rounded-l-full h-full" style={{ width: `${pctA}%` }} />
+          <div className="bg-blue-500 rounded-r-full h-full ml-auto" style={{ width: `${pctB}%` }} />
+        </div>
+        <span className={`text-sm font-bold w-16 text-left tabular-nums ${winsB ? 'text-blue-400' : 'text-gray-400'}`}>{fmt(vB)}</span>
+      </div>
+      <p className="text-[10px] text-gray-600 text-center uppercase tracking-widest">
+        {label}{proOnly && <span className="ml-1 text-amber-600">· Pro</span>}
+      </p>
+    </div>
+  )
+}
+
+function FormStrip({ form = '' }) {
+  const results = form.split('').slice(-6)
+  const cfg = { W: 'bg-emerald-600', D: 'bg-gray-600', L: 'bg-red-600' }
+  return (
+    <div className="flex gap-0.5">
+      {results.map((r, i) => (
+        <span key={i} className={`w-5 h-5 rounded text-[9px] font-bold flex items-center justify-center text-white ${cfg[r] ?? 'bg-gray-800'}`}>{r}</span>
+      ))}
+    </div>
+  )
+}
+
+function getVeredicto(dA, dB) {
+  if (!dA || !dB) return null
+  const score = (d) => {
+    let s = 0
+    s += d.points * 1.5
+    s += (d.goals_for / Math.max(d.played, 1)) * 10      // attack
+    s -= (d.goals_against / Math.max(d.played, 1)) * 8   // defense
+    s += (d.won / Math.max(d.played, 1)) * 15            // win rate
+    s += d.goal_diff * 0.5
+    return s
+  }
+  const sA = score(dA), sB = score(dB)
+  const diff = Math.abs(sA - sB)
+  const winner = sA > sB ? dA : dB
+  const loser  = sA > sB ? dB : dA
+  let strength = diff > 20 ? 'clara ventaja' : diff > 8 ? 'ligera ventaja' : 'muy igualado'
+
+  const atkA = (dA.goals_for  / Math.max(dA.played, 1)).toFixed(2)
+  const defA = (dA.goals_against / Math.max(dA.played, 1)).toFixed(2)
+  const atkB = (dB.goals_for  / Math.max(dB.played, 1)).toFixed(2)
+  const defB = (dB.goals_against / Math.max(dB.played, 1)).toFixed(2)
+
+  const lines = []
+  if (dA.points !== dB.points) lines.push(`${winner.team} lleva ${winner.points} pts vs ${loser.points} de ${loser.team}.`)
+  if (parseFloat(atkA) > parseFloat(atkB)) lines.push(`${dA.team} es más goleador (${atkA} goles/partido vs ${atkB}).`)
+  else if (parseFloat(atkB) > parseFloat(atkA)) lines.push(`${dB.team} es más goleador (${atkB} goles/partido vs ${atkA}).`)
+  if (parseFloat(defA) < parseFloat(defB)) lines.push(`${dA.team} tiene mejor defensa (${defA} gc/partido).`)
+  else if (parseFloat(defB) < parseFloat(defA)) lines.push(`${dB.team} tiene mejor defensa (${defB} gc/partido).`)
+
+  return { winner, loser, strength, lines, sA, sB }
+}
+
 function CompareTab({ standings }) {
   const teams = standings.map(s => s.team)
   const [a, setA] = useState(teams[0] ?? '')
@@ -220,98 +289,207 @@ function CompareTab({ standings }) {
 
   const dA = standings.find(s => s.team === a)
   const dB = standings.find(s => s.team === b)
+  const verdict = getVeredicto(dA, dB)
 
-  if (standings.length < 2) {
-    return <div className="p-8 text-center text-gray-600">Inicializa las ligas para comparar equipos.</div>
-  }
+  if (standings.length < 2) return <div className="p-8 text-center text-gray-600">Inicializa las ligas para comparar equipos.</div>
+
+  const pct = (v, t) => t > 0 ? `${((v / t) * 100).toFixed(0)}%` : '0%'
+  const per = (v, p) => p > 0 ? (v / p).toFixed(2) : '0'
+  const selectCls = "bg-gray-900/80 border border-gray-700/60 text-white text-sm rounded-xl px-3 py-2.5 flex-1 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
 
   const barData = [
-    { stat: 'Puntos',  [a]: dA?.points,         [b]: dB?.points },
-    { stat: 'Ganados', [a]: dA?.won,             [b]: dB?.won },
-    { stat: 'Empates', [a]: dA?.draw,            [b]: dB?.draw },
-    { stat: 'Perdidos',[a]: dA?.lost,            [b]: dB?.lost },
-    { stat: 'GF',      [a]: dA?.goals_for,       [b]: dB?.goals_for },
-    { stat: 'GC',      [a]: dA?.goals_against,   [b]: dB?.goals_against },
-    { stat: 'DG',      [a]: dA?.goal_diff,       [b]: dB?.goal_diff },
+    { stat: 'Pts',  [a]: dA?.points,       [b]: dB?.points },
+    { stat: 'GF',   [a]: dA?.goals_for,    [b]: dB?.goals_for },
+    { stat: 'GC',   [a]: dA?.goals_against,[b]: dB?.goals_against },
+    { stat: 'DG',   [a]: dA?.goal_diff,    [b]: dB?.goal_diff },
+    { stat: 'PG',   [a]: dA?.won,          [b]: dB?.won },
+    { stat: 'PE',   [a]: dA?.draw,         [b]: dB?.draw },
+    { stat: 'PP',   [a]: dA?.lost,         [b]: dB?.lost },
   ]
 
   const radarData = [
-    { stat: 'Puntos',  [a]: dA?.points,       [b]: dB?.points,       max: Math.max(dA?.points ?? 0, dB?.points ?? 0, 1) },
-    { stat: 'Ataque',  [a]: dA?.goals_for,    [b]: dB?.goals_for,    max: Math.max(dA?.goals_for ?? 0, dB?.goals_for ?? 0, 1) },
-    { stat: 'Defensa', [a]: 100 - ((dA?.goals_against ?? 50)), [b]: 100 - ((dB?.goals_against ?? 50)) },
-    { stat: 'Victorias',[a]: dA?.won,         [b]: dB?.won,          max: Math.max(dA?.won ?? 0, dB?.won ?? 0, 1) },
-    { stat: 'Jugados', [a]: dA?.played,       [b]: dB?.played,       max: Math.max(dA?.played ?? 0, dB?.played ?? 0, 1) },
+    { stat: 'Puntos',    [a]: dA?.points ?? 0,       [b]: dB?.points ?? 0 },
+    { stat: 'Ataque',    [a]: dA?.goals_for ?? 0,    [b]: dB?.goals_for ?? 0 },
+    { stat: 'Defensa',   [a]: Math.max(0, 100 - (dA?.goals_against ?? 50)), [b]: Math.max(0, 100 - (dB?.goals_against ?? 50)) },
+    { stat: 'Victorias', [a]: dA?.won ?? 0,          [b]: dB?.won ?? 0 },
+    { stat: 'Local',     [a]: dA?.home_won ?? 0,     [b]: dB?.home_won ?? 0 },
+    { stat: 'Visitante', [a]: dA?.away_won ?? 0,     [b]: dB?.away_won ?? 0 },
   ]
-
-  const selectCls = "bg-gray-900 border border-gray-700 text-white text-sm rounded-lg px-3 py-2 flex-1 focus:outline-none focus:border-emerald-500"
 
   return (
     <div className="p-4 space-y-4">
-      {/* Team selectors */}
+      {/* Selectors */}
       <div className="flex items-center gap-3">
         <select value={a} onChange={e => setA(e.target.value)} className={selectCls}>
           {teams.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
-        <span className="text-gray-600 font-bold text-lg shrink-0">vs</span>
+        <div className="shrink-0 w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-gray-500 font-bold text-sm">vs</div>
         <select value={b} onChange={e => setB(e.target.value)} className={selectCls}>
           {teams.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
       </div>
 
-      {/* Score cards */}
       {dA && dB && (
-        <div className="grid grid-cols-2 gap-3">
-          {[{d: dA, color: 'emerald'}, {d: dB, color: 'blue'}].map(({d, color}, idx) => (
-            <div key={idx} className={`rounded-xl border p-4 ${color === 'emerald' ? 'border-emerald-800/40 bg-emerald-950/20' : 'border-blue-800/40 bg-blue-950/20'}`}>
-              <div className="flex items-center gap-2 mb-3">
-                {d.crest && <img src={d.crest} alt="" className="w-8 h-8 object-contain" />}
-                <p className="font-bold text-white text-sm truncate">{d.team}</p>
-                <span className={`ml-auto text-xs font-bold ${color === 'emerald' ? 'text-emerald-400' : 'text-blue-400'}`}>#{d.position}</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                {[['PJ', d.played], ['G', d.won, 'text-emerald-400'], ['E', d.draw], ['P', d.lost, 'text-red-400'], ['GF', d.goals_for], ['Pts', d.points, 'text-white font-bold']].map(([l, v, cls='text-gray-300']) => (
-                  <div key={l} className="bg-black/20 rounded-lg py-2">
-                    <p className={`text-base font-bold ${cls}`}>{v}</p>
-                    <p className="text-[10px] text-gray-600">{l}</p>
+        <>
+          {/* Team headers */}
+          <div className="grid grid-cols-2 gap-3">
+            {[[dA, '#10b981', 'border-emerald-800/40 bg-emerald-950/20'], [dB, '#3b82f6', 'border-blue-800/40 bg-blue-950/20']].map(([d, color, cls], idx) => (
+              <div key={idx} className={`rounded-xl border p-4 ${cls}`}>
+                <div className="flex items-center gap-3 mb-3">
+                  {d.crest && <img src={d.crest} alt="" className="w-10 h-10 object-contain" />}
+                  <div>
+                    <p className="font-bold text-white text-sm leading-tight">{d.team}</p>
+                    <p className="text-[10px] text-gray-600">Posición #{d.position}</p>
                   </div>
+                </div>
+                {d.form && <div className="mb-3"><FormStrip form={d.form} /></div>}
+                <div className="grid grid-cols-3 gap-1.5 text-center">
+                  {[['PJ', d.played, 'text-gray-300'], ['G', d.won, 'text-emerald-400'], ['E', d.draw, 'text-gray-400'],
+                    ['P', d.lost, 'text-red-400'], ['GF', d.goals_for, 'text-white'], ['Pts', d.points, 'text-white font-bold']
+                  ].map(([l, v, c]) => (
+                    <div key={l} className="bg-black/20 rounded-lg py-1.5">
+                      <p className={`text-sm font-bold ${c}`}>{v}</p>
+                      <p className="text-[9px] text-gray-700">{l}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* STAT DUEL — FlashScore style */}
+          <div className="bg-gray-900/50 rounded-xl border border-gray-800/40 overflow-hidden">
+            <div className="grid grid-cols-3 px-4 py-2 bg-gray-900/60 text-[10px] text-gray-600 uppercase tracking-widest font-bold">
+              <span className="text-emerald-600 truncate">{dA.team}</span>
+              <span className="text-center">Estadística</span>
+              <span className="text-blue-600 text-right truncate">{dB.team}</span>
+            </div>
+            <StatDuel label="Puntos" vA={dA.points} vB={dB.points} nameA={a} nameB={b} />
+            <StatDuel label="Goles marcados" vA={dA.goals_for} vB={dB.goals_for} nameA={a} nameB={b} />
+            <StatDuel label="Goles recibidos" vA={dA.goals_against} vB={dB.goals_against} nameA={a} nameB={b} higherIsBetter={false} />
+            <StatDuel label="Diferencia de goles" vA={dA.goal_diff} vB={dB.goal_diff} nameA={a} nameB={b} />
+            <StatDuel label="Victorias" vA={dA.won} vB={dB.won} nameA={a} nameB={b} />
+            <StatDuel label="Empates" vA={dA.draw} vB={dB.draw} nameA={a} nameB={b} />
+            <StatDuel label="Derrotas" vA={dA.lost} vB={dB.lost} nameA={a} nameB={b} higherIsBetter={false} />
+            <StatDuel label="Goles/partido" vA={per(dA.goals_for, dA.played)} vB={per(dB.goals_for, dB.played)} nameA={a} nameB={b} />
+            <StatDuel label="Recibidos/partido" vA={per(dA.goals_against, dA.played)} vB={per(dB.goals_against, dB.played)} nameA={a} nameB={b} higherIsBetter={false} />
+            <StatDuel label="% Victorias" vA={pct(dA.won, dA.played)} vB={pct(dB.won, dB.played)} nameA={a} nameB={b} />
+          </div>
+
+          {/* Local vs Visitante */}
+          {(dA.home_played > 0 || dA.away_played > 0) && (
+            <div className="grid grid-cols-2 gap-3">
+              {[[dA, 'emerald'], [dB, 'blue']].map(([d, color], idx) => (
+                <div key={idx} className="bg-gray-900/50 rounded-xl border border-gray-800/40 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    {d.crest && <img src={d.crest} alt="" className="w-5 h-5 object-contain" />}
+                    <p className={`text-xs font-bold ${color === 'emerald' ? 'text-emerald-400' : 'text-blue-400'}`}>{d.team}</p>
+                  </div>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between items-center pb-1 border-b border-gray-800/40">
+                      <span className="text-gray-600 text-[10px] uppercase font-bold">Local</span>
+                      <span className="text-gray-600 text-[10px] uppercase font-bold">Visitante</span>
+                    </div>
+                    {[
+                      ['Partidos', d.home_played, d.away_played],
+                      ['Victorias', d.home_won,   d.away_won],
+                      ['Goles +',  d.home_gf,    d.away_gf],
+                      ['Goles -',  d.home_ga,    d.away_ga],
+                    ].map(([l, hv, av]) => (
+                      <div key={l} className="flex justify-between">
+                        <span className={`font-bold ${hv > av ? 'text-emerald-400' : hv < av ? 'text-red-400' : 'text-gray-400'}`}>{hv}</span>
+                        <span className="text-gray-600">{l}</span>
+                        <span className={`font-bold ${av > hv ? 'text-emerald-400' : av < hv ? 'text-red-400' : 'text-gray-400'}`}>{av}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Stats pending API Pro */}
+          <div className="bg-gray-900/50 rounded-xl border border-amber-800/20 overflow-hidden">
+            <div className="px-4 py-2 bg-amber-950/20 flex items-center gap-2">
+              <span className="text-[10px] uppercase tracking-widest font-bold text-amber-500">Estadísticas avanzadas</span>
+              <span className="text-[10px] text-amber-700 bg-amber-900/30 px-2 py-0.5 rounded">Requiere API-Football Pro $49/mes</span>
+            </div>
+            <div className="divide-y divide-gray-800/20 opacity-40 pointer-events-none">
+              <StatDuel label="Tiros a puerta" vA="—" vB="—" nameA={a} nameB={b} />
+              <StatDuel label="Tiros de esquina" vA="—" vB="—" nameA={a} nameB={b} />
+              <StatDuel label="Tarjetas amarillas" vA="—" vB="—" nameA={a} nameB={b} higherIsBetter={false} />
+              <StatDuel label="Tarjetas rojas" vA="—" vB="—" nameA={a} nameB={b} higherIsBetter={false} />
+              <StatDuel label="Posesión promedio %" vA="—" vB="—" nameA={a} nameB={b} />
+              <StatDuel label="Goles 1er tiempo" vA="—" vB="—" nameA={a} nameB={b} />
+              <StatDuel label="Goles 2do tiempo" vA="—" vB="—" nameA={a} nameB={b} />
+              <StatDuel label="Goles de cabeza" vA="—" vB="—" nameA={a} nameB={b} />
+              <StatDuel label="Goles de tiro libre" vA="—" vB="—" nameA={a} nameB={b} />
+              <StatDuel label="Penaltis anotados" vA="—" vB="—" nameA={a} nameB={b} />
+            </div>
+          </div>
+
+          {/* Bar + Radar charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-gray-900/50 rounded-xl border border-gray-800/40 p-4">
+              <h3 className="text-[11px] uppercase tracking-widest text-gray-600 font-bold mb-4">Comparación general</h3>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={barData} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                  <XAxis dataKey="stat" tick={{ fill: '#6b7280', fontSize: 10 }} />
+                  <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} />
+                  <Tooltip contentStyle={{ background: '#111827', border: '1px solid #374151', borderRadius: 8, fontSize: 11 }} />
+                  <Legend wrapperStyle={{ fontSize: 10, color: '#9ca3af' }} />
+                  <Bar dataKey={a} fill="#10b981" radius={[3, 3, 0, 0]} maxBarSize={28} />
+                  <Bar dataKey={b} fill="#3b82f6" radius={[3, 3, 0, 0]} maxBarSize={28} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="bg-gray-900/50 rounded-xl border border-gray-800/40 p-4">
+              <h3 className="text-[11px] uppercase tracking-widest text-gray-600 font-bold mb-4">Perfil del equipo</h3>
+              <ResponsiveContainer width="100%" height={200}>
+                <RadarChart data={radarData}>
+                  <PolarGrid stroke="#1f2937" />
+                  <PolarAngleAxis dataKey="stat" tick={{ fill: '#6b7280', fontSize: 10 }} />
+                  <PolarRadiusAxis tick={false} axisLine={false} />
+                  <Radar name={a} dataKey={a} stroke="#10b981" fill="#10b981" fillOpacity={0.3} />
+                  <Radar name={b} dataKey={b} stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} />
+                  <Legend wrapperStyle={{ fontSize: 10, color: '#9ca3af' }} />
+                  <Tooltip contentStyle={{ background: '#111827', border: '1px solid #374151', borderRadius: 8, fontSize: 11 }} />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* VEREDICTO */}
+          {verdict && (
+            <div className="rounded-xl border border-emerald-800/40 bg-emerald-950/20 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-lg">🏆</span>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wide">Veredicto del análisis</h3>
+              </div>
+              <div className="flex items-center gap-3 mb-4">
+                {verdict.winner.crest && <img src={verdict.winner.crest} alt="" className="w-10 h-10 object-contain" />}
+                <div>
+                  <p className="text-xl font-black text-emerald-400">{verdict.winner.team}</p>
+                  <p className="text-xs text-gray-500">{verdict.strength} sobre {verdict.loser.team}</p>
+                </div>
+                <div className="ml-auto text-right">
+                  <p className="text-2xl font-black text-white">{verdict.sA.toFixed(0)} <span className="text-gray-600 text-sm">vs</span> {verdict.sB.toFixed(0)}</p>
+                  <p className="text-[10px] text-gray-600">Score analítico</p>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                {verdict.lines.map((line, i) => (
+                  <p key={i} className="text-xs text-gray-400 flex gap-2"><span className="text-emerald-600 shrink-0">›</span>{line}</p>
                 ))}
               </div>
+              <p className="text-[10px] text-gray-700 mt-3 border-t border-gray-800/40 pt-3">
+                * Análisis basado en estadísticas de temporada. Activa API-Football Pro para incluir tiros, corners, tarjetas y minutos de gol.
+              </p>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
-
-      {/* Bar chart comparison */}
-      <div className="bg-gray-900/50 rounded-xl border border-gray-800/40 p-4">
-        <h3 className="text-[11px] uppercase tracking-widest text-gray-500 font-bold mb-4">Comparación estadística</h3>
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={barData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-            <XAxis dataKey="stat" tick={{ fill: '#6b7280', fontSize: 10 }} />
-            <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} />
-            <Tooltip contentStyle={{ background: '#111827', border: '1px solid #374151', borderRadius: 8, fontSize: 11 }} />
-            <Legend wrapperStyle={{ fontSize: 11, color: '#9ca3af' }} />
-            <Bar dataKey={a} fill="#10b981" radius={[3, 3, 0, 0]} maxBarSize={30} />
-            <Bar dataKey={b} fill="#3b82f6" radius={[3, 3, 0, 0]} maxBarSize={30} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Radar chart */}
-      <div className="bg-gray-900/50 rounded-xl border border-gray-800/40 p-4">
-        <h3 className="text-[11px] uppercase tracking-widest text-gray-500 font-bold mb-4">Perfil del equipo</h3>
-        <ResponsiveContainer width="100%" height={240}>
-          <RadarChart data={radarData}>
-            <PolarGrid stroke="#1f2937" />
-            <PolarAngleAxis dataKey="stat" tick={{ fill: '#6b7280', fontSize: 11 }} />
-            <PolarRadiusAxis tick={false} axisLine={false} />
-            <Radar name={a} dataKey={a} stroke="#10b981" fill="#10b981" fillOpacity={0.25} />
-            <Radar name={b} dataKey={b} stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.25} />
-            <Legend wrapperStyle={{ fontSize: 11, color: '#9ca3af' }} />
-            <Tooltip contentStyle={{ background: '#111827', border: '1px solid #374151', borderRadius: 8, fontSize: 11 }} />
-          </RadarChart>
-        </ResponsiveContainer>
-      </div>
     </div>
   )
 }

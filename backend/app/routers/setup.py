@@ -27,6 +27,8 @@ def _parse_standings(data: dict) -> list[dict]:
         league_data = entry.get("league", {})
         for group in league_data.get("standings", []):
             for row in group:
+                h = row.get("home", {})
+                a = row.get("away", {})
                 standings.append({
                     "position": row["rank"],
                     "team": row["team"]["name"],
@@ -39,6 +41,22 @@ def _parse_standings(data: dict) -> list[dict]:
                     "goals_against": row["all"]["goals"]["against"],
                     "goal_diff": row["goalsDiff"],
                     "points": row["points"],
+                    # Home split
+                    "home_played": h.get("played", 0),
+                    "home_won":    h.get("win", 0),
+                    "home_draw":   h.get("draw", 0),
+                    "home_lost":   h.get("lose", 0),
+                    "home_gf":     h.get("goals", {}).get("for", 0),
+                    "home_ga":     h.get("goals", {}).get("against", 0),
+                    # Away split
+                    "away_played": a.get("played", 0),
+                    "away_won":    a.get("win", 0),
+                    "away_draw":   a.get("draw", 0),
+                    "away_lost":   a.get("lose", 0),
+                    "away_gf":     a.get("goals", {}).get("for", 0),
+                    "away_ga":     a.get("goals", {}).get("against", 0),
+                    # Form string
+                    "form": row.get("form", ""),
                 })
     seen, unique = set(), []
     for s in sorted(standings, key=lambda x: (-x["points"], -x["goal_diff"])):
