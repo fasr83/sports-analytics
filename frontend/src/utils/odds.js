@@ -22,9 +22,12 @@ export const overroundColor = (overround) => {
 }
 
 export const LEAGUES = [
-  { code: 'PL', name: 'Premier League', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
-  { code: 'PD', name: 'La Liga', flag: '🇪🇸' },
-  { code: 'CL', name: 'Champions League', flag: '🏆' },
-  { code: 'EL', name: 'Europa League', flag: '🇪🇺' },
-  { code: 'CO1', name: 'Liga BetPlay', flag: '🇨🇴' },
+  { code: 'PL',  name: 'Premier League',   flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
+  { code: 'PD',  name: 'La Liga',          flag: '🇪🇸' },
+  { code: 'BL1', name: 'Bundesliga',       flag: '🇩🇪' },
+  { code: 'SA',  name: 'Serie A',          flag: '🇮🇹' },
+  { code: 'FL1', name: 'Ligue 1',          flag: '🇫🇷' },
+  { code: 'CL',  name: 'Champions League', flag: '🏆' },
+  { code: 'EL',  name: 'Europa League',    flag: '🇪🇺' },
+  { code: 'CO1', name: 'Liga BetPlay',     flag: '🇨🇴' },
 ]
