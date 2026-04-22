@@ -6,16 +6,22 @@ from fastapi import APIRouter
 router = APIRouter(prefix="/news", tags=["news"])
 
 RSS_FEEDS = [
-    {"name": "BBC Sport",       "url": "https://feeds.bbci.co.uk/sport/football/rss.xml"},
-    {"name": "Sky Sports",      "url": "https://www.skysports.com/rss/12040"},
-    {"name": "Goal.com",        "url": "https://www.goal.com/feeds/en/news"},
-    {"name": "ESPN FC",         "url": "https://www.espn.com/espn/rss/soccer/news"},
-    {"name": "Marca",           "url": "https://e00-marca.uecdn.es/rss/futbol/internacional.xml"},
-    {"name": "AS",              "url": "https://as.com/rss/tags/futbol.xml"},
-    {"name": "ESPN Deportes",   "url": "https://www.espndeportes.espn.com/espndeportes/rss/noticias?seccion=futbol"},
-    {"name": "Mundo Deportivo", "url": "https://www.mundodeportivo.com/rss/futbol.xml"},
-    {"name": "Sport",           "url": "https://www.sport.es/rss/futbol.xml"},
-    {"name": "GolCaracol",      "url": "https://golcaracol.com/rss/portada"},
+    # Google News (most reliable, rarely blocked)
+    {"name": "Google Fútbol",  "url": "https://news.google.com/rss/search?q=futbol+fichajes&hl=es&gl=CO&ceid=CO:es"},
+    {"name": "Google PL",      "url": "https://news.google.com/rss/search?q=Premier+League&hl=es&gl=ES&ceid=ES:es"},
+    {"name": "Google UCL",     "url": "https://news.google.com/rss/search?q=Champions+League&hl=es&gl=ES&ceid=ES:es"},
+    {"name": "Google Mundial", "url": "https://news.google.com/rss/search?q=Mundial+2026+futbol&hl=es&gl=CO&ceid=CO:es"},
+    # Spanish sports media
+    {"name": "Marca",          "url": "https://e00-marca.uecdn.es/rss/futbol/internacional.xml"},
+    {"name": "AS",             "url": "https://as.com/rss/tags/futbol.xml"},
+    {"name": "Mundo Deportivo","url": "https://www.mundodeportivo.com/rss/futbol.xml"},
+    # International
+    {"name": "BBC Sport",      "url": "https://feeds.bbci.co.uk/sport/football/rss.xml"},
+    {"name": "ESPN FC",        "url": "https://www.espn.com/espn/rss/soccer/news"},
+    {"name": "Goal.com",       "url": "https://www.goal.com/feeds/en/news"},
+    # Colombia / Latin America
+    {"name": "GolCaracol",     "url": "https://golcaracol.com/rss/portada"},
+    {"name": "ESPN Deportes",  "url": "https://www.espndeportes.espn.com/espndeportes/rss/noticias?seccion=futbol"},
 ]
 
 _cache: dict = {"data": [], "ts": 0}
@@ -28,30 +34,36 @@ def _parse_feed(xml_bytes: bytes, source: str) -> list[dict]:
         items = []
         for item in root.findall(".//item")[:6]:
             title = item.findtext("title", "").strip()
-            link = item.findtext("link", "").strip()
-            desc = item.findtext("description", "").strip()
-            pub = item.findtext("pubDate", "").strip()
+            link  = item.findtext("link",  "").strip()
+            desc  = item.findtext("description", "").strip()
+            pub   = item.findtext("pubDate", "").strip()
             if title and link:
-                items.append({"title": title, "link": link,
-                              "description": desc[:200] if desc else "",
-                              "pub_date": pub, "source": source})
+                items.append({
+                    "title":       title,
+                    "link":        link,
+                    "description": desc[:200] if desc else "",
+                    "pub_date":    pub,
+                    "source":      source,
+                })
         return items
     except Exception:
         return []
 
 
 @router.get("/")
-async def get_news(limit: int = 40):
+async def get_news(limit: int = 50):
     global _cache
     if time.time() - _cache["ts"] < CACHE_TTL and _cache["data"]:
         return {"news": _cache["data"][:limit], "cached": True}
 
-    all_items = []
+    all_items: list[dict] = []
     async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
         for feed in RSS_FEEDS:
             try:
-                r = await client.get(feed["url"],
-                    headers={"User-Agent": "MetricCapital/1.0 RSS Reader"})
+                r = await client.get(
+                    feed["url"],
+                    headers={"User-Agent": "MetricCapital/1.0 RSS Reader"},
+                )
                 if r.status_code == 200:
                     all_items.extend(_parse_feed(r.content, feed["name"]))
             except Exception:

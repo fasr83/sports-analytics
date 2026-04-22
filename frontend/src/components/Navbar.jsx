@@ -1,5 +1,4 @@
 import { Link, NavLink } from 'react-router-dom'
-import { LEAGUES } from '../utils/odds'
 
 function Logo() {
   return (
@@ -22,8 +21,8 @@ function Logo() {
 
 export default function Navbar() {
   return (
-    <nav className="bg-gray-950 border-b border-gray-800/60 sticky top-0 z-50 backdrop-blur-sm">
-      <div className="max-w-7xl mx-auto px-4 flex items-center gap-6 h-14">
+    <nav className="bg-[#060b15] border-b border-gray-800/50 sticky top-0 z-50">
+      <div className="px-4 flex items-center gap-4 h-14">
         <Link to="/" className="flex items-center gap-2.5 shrink-0">
           <Logo />
           <div className="flex flex-col leading-none">
@@ -34,27 +33,17 @@ export default function Navbar() {
 
         <div className="w-px h-6 bg-gray-800 shrink-0" />
 
-        <div className="flex gap-0.5 flex-1 overflow-x-auto scrollbar-hide">
-          {LEAGUES.map((l) => (
-            <NavLink
-              key={l.code}
-              to={`/league/${l.code}`}
-              className={({ isActive }) =>
-                `px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-all ${
-                  isActive
-                    ? 'bg-emerald-500/10 text-emerald-400 font-medium border border-emerald-500/20'
-                    : 'text-gray-500 hover:text-gray-200 hover:bg-gray-800/60'
-                }`
-              }
-            >
-              {l.flag} {l.name}
-            </NavLink>
-          ))}
+        <div className="flex gap-1">
+          <NavLink to="/" end className={({ isActive }) =>
+            `px-3 py-1.5 rounded-lg text-sm transition-all ${isActive ? 'bg-emerald-500/10 text-emerald-400 font-medium' : 'text-gray-500 hover:text-white hover:bg-white/5'}`
+          }>Dashboard</NavLink>
         </div>
+
+        <div className="flex-1" />
 
         <div className="shrink-0 flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-xs text-gray-500">Live</span>
+          <span className="text-xs text-gray-400">Live</span>
         </div>
       </div>
     </nav>

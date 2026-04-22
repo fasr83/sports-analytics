@@ -6,7 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from 'recharts'
-import { LEAGUES } from '../utils/odds'
+import { LEAGUES, LEAGUE_GROUPS } from '../utils/odds'
 import { useNews } from '../hooks/useNews'
 import { useYouTube } from '../hooks/useYouTube'
 import { format, parseISO } from 'date-fns'
@@ -117,11 +117,11 @@ function MatchRow({ m, leagueCode }) {
           {col && <p className="text-[9px] text-amber-600/80">🇨🇴 {col}</p>}
         </div>
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-sm text-gray-200 text-right flex-1 truncate font-medium">{m.home_team}</span>
+          <span className="text-sm text-white text-right flex-1 truncate font-medium">{m.home_team}</span>
           <span className="text-xs font-bold text-gray-500 w-12 text-center shrink-0">
             {hasResult ? `${m.home_goals} – ${m.away_goals}` : 'vs'}
           </span>
-          <span className="text-sm text-gray-200 text-left flex-1 truncate font-medium">{m.away_team}</span>
+          <span className="text-sm text-white text-left flex-1 truncate font-medium">{m.away_team}</span>
         </div>
         {p && (
           <div className="flex gap-0.5 shrink-0">
@@ -811,22 +811,33 @@ export default function Dashboard() {
       <div className="flex flex-1 min-h-0">
 
         {/* LEFT sidebar */}
-        <div className="w-48 bg-[#060b15] border-r border-gray-800/50 flex flex-col shrink-0">
-          <div className="px-3 py-2 text-[10px] text-gray-700 uppercase tracking-widest font-bold border-b border-gray-800/40">Ligas</div>
+        <div className="w-52 bg-[#060b15] border-r border-gray-800/50 flex flex-col shrink-0">
+          <div className="px-3 py-2 text-[10px] text-gray-400 uppercase tracking-widest font-bold border-b border-gray-800/40">Ligas</div>
           <div className="flex-1 overflow-y-auto">
-            {LEAGUES.map(l => {
-              const ls = status?.leagues?.[l.code]
-              const active = activeLeague === l.code
+            {Object.entries(LEAGUE_GROUPS).map(([groupKey, groupMeta]) => {
+              const groupLeagues = LEAGUES.filter(l => l.group === groupKey)
+              if (!groupLeagues.length) return null
               return (
-                <button key={l.code} onClick={() => { setActiveLeague(l.code); setTab('matches') }}
-                  className={`w-full flex items-center gap-2.5 px-3 py-3 text-left border-b border-gray-800/20 transition-colors ${active ? 'bg-emerald-950/30 border-l-2 border-l-emerald-500' : 'hover:bg-white/[0.03]'}`}>
-                  <span className="text-base shrink-0">{l.flag}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-xs truncate ${active ? 'text-white font-semibold' : 'text-gray-400'}`}>{l.name}</p>
-                    {ls && <p className="text-[10px] text-gray-700">{ls.teams_in_model} equipos</p>}
+                <div key={groupKey}>
+                  <div className="px-3 py-1.5 text-[10px] text-gray-600 uppercase tracking-widest font-bold bg-gray-900/40 border-b border-gray-800/20 flex items-center gap-1.5">
+                    <span>{groupMeta.icon}</span>{groupMeta.label}
                   </div>
-                  <Dot on={ls?.model_trained} />
-                </button>
+                  {groupLeagues.map(l => {
+                    const ls = status?.leagues?.[l.code]
+                    const active = activeLeague === l.code
+                    return (
+                      <button key={l.code} onClick={() => { setActiveLeague(l.code); setTab('matches') }}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-left border-b border-gray-800/20 transition-colors ${active ? 'bg-emerald-950/30 border-l-2 border-l-emerald-500' : 'hover:bg-white/[0.03]'}`}>
+                        <span className="text-sm shrink-0">{l.flag}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs truncate font-medium ${active ? 'text-white' : 'text-gray-300'}`}>{l.name}</p>
+                          {ls && <p className="text-[10px] text-gray-600">{ls.teams_in_model} equipos</p>}
+                        </div>
+                        <Dot on={ls?.model_trained} />
+                      </button>
+                    )
+                  })}
+                </div>
               )
             })}
           </div>
