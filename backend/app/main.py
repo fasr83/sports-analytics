@@ -11,13 +11,22 @@ logger = logging.getLogger("sports_analytics")
 
 async def _auto_init():
     """Train models on startup — uses real APIs if keys are set, demo otherwise."""
+    from .routers.setup import init_real, init_demo
+    from .config import settings
     try:
-        from .routers.setup import init_real
-        result = await init_real()
-        for code, r in result.get("results", {}).items():
-            logger.info(f"[startup] {code}: {r.get('status')} {r.get('matches_used', 0)} partidos")
+        if settings.API_FOOTBALL_KEY:
+            result = await init_real()
+            for code, r in result.get("results", {}).items():
+                logger.info(f"[startup] {code}: {r.get('status')} {r.get('matches_used', 0)} partidos")
+        else:
+            logger.warning("[startup] No API_FOOTBALL_KEY — loading demo data")
+            await init_demo()
     except Exception as e:
-        logger.error(f"[startup] auto-init failed: {e}")
+        logger.error(f"[startup] auto-init failed: {e}, falling back to demo")
+        try:
+            await init_demo()
+        except Exception as e2:
+            logger.error(f"[startup] demo fallback also failed: {e2}")
 
 
 @asynccontextmanager

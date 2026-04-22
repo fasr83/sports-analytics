@@ -177,7 +177,8 @@ async def get_status():
 async def init_real():
     """Fetch real data from API-Football, train Poisson models, cache standings & fixtures."""
     if not settings.API_FOOTBALL_KEY:
-        return {"error": "API_FOOTBALL_KEY not configured"}
+        logger.warning("[init-real] No API key — loading demo data instead")
+        return await init_demo()
 
     results = {}
     for code, info in LEAGUES.items():
