@@ -553,6 +553,130 @@ function NewsPanel({ news, loading }) {
   )
 }
 
+/* ─── World Cup 2026 Widget ─── */
+const WC_FAVORITES = [
+  { flag: '🇧🇷', name: 'Brasil',    pct: 18 },
+  { flag: '🇫🇷', name: 'Francia',   pct: 16 },
+  { flag: '🇦🇷', name: 'Argentina', pct: 15 },
+  { flag: '🇪🇸', name: 'España',    pct: 14 },
+  { flag: '🇩🇪', name: 'Alemania',  pct: 12 },
+  { flag: '🇬🇧', name: 'Inglaterra',pct: 10 },
+  { flag: '🇵🇹', name: 'Portugal',  pct: 9  },
+  { flag: '🇳🇱', name: 'Holanda',   pct: 6  },
+]
+
+function WorldCupWidget({ now }) {
+  const diff = WC2026 - now
+  const d = Math.max(0, Math.floor(diff / 86400000))
+  const h = Math.max(0, Math.floor((diff % 86400000) / 3600000))
+  const m = Math.max(0, Math.floor((diff % 3600000) / 60000))
+  const s = Math.max(0, Math.floor((diff % 60000) / 1000))
+
+  const [voted, setVoted] = useState(() => {
+    try { return localStorage.getItem('wc2026_voted') || null } catch { return null }
+  })
+  const [votes, setVotes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('wc2026_votes') || 'null') || { MX: 34, TBD: 66 } }
+    catch { return { MX: 34, TBD: 66 } }
+  })
+
+  const castVote = (team) => {
+    if (voted) return
+    const newV = { ...votes, [team]: (votes[team] || 0) + 1 }
+    setVotes(newV)
+    setVoted(team)
+    try {
+      localStorage.setItem('wc2026_votes', JSON.stringify(newV))
+      localStorage.setItem('wc2026_voted', team)
+    } catch {}
+  }
+
+  const totalV = Object.values(votes).reduce((a, b) => a + b, 0) || 1
+  const mxPct  = Math.round((votes.MX  / totalV) * 100)
+  const tbdPct = 100 - mxPct
+
+  // Local time of opening match
+  const wcLocalTime = new Intl.DateTimeFormat('es', {
+    hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Mexico_City',
+  }).format(WC2026)
+
+  return (
+    <div className="shrink-0 border-b border-yellow-900/30 bg-gradient-to-b from-[#0a1628] to-[#060b15]">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-3 pt-3 pb-2">
+        <span className="text-xl">⚽</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] font-black text-white uppercase tracking-wide leading-tight">Mundial de Fútbol 2026</p>
+          <p className="text-[9px] text-yellow-600">🇺🇸 USA · 🇨🇦 Canadá · 🇲🇽 México</p>
+        </div>
+      </div>
+
+      {/* Countdown */}
+      <div className="grid grid-cols-4 gap-1 px-3 pb-3">
+        {[['días', d], ['horas', h], ['min', m], ['seg', s]].map(([l, v]) => (
+          <div key={l} className="bg-black/50 rounded-lg py-2 text-center border border-yellow-900/20">
+            <p className="text-base font-black text-yellow-400 font-mono tabular-nums leading-none">{String(v).padStart(2,'0')}</p>
+            <p className="text-[8px] text-gray-700 uppercase mt-0.5">{l}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Opening match */}
+      <div className="mx-3 mb-3 bg-black/30 rounded-xl border border-yellow-900/20 p-3">
+        <p className="text-[9px] text-yellow-700 uppercase tracking-widest font-bold mb-2 text-center">Partido inaugural</p>
+        <div className="flex items-center justify-between gap-1 mb-2">
+          <button onClick={() => castVote('MX')}
+            className={`flex flex-col items-center gap-1 flex-1 py-2 rounded-lg transition-all ${voted === 'MX' ? 'bg-emerald-900/40 ring-1 ring-emerald-500' : 'hover:bg-white/5'} ${voted && voted !== 'MX' ? 'opacity-50' : ''}`}>
+            <span className="text-3xl">🇲🇽</span>
+            <span className="text-[10px] text-gray-400 font-medium">México</span>
+            {voted && <span className="text-[10px] text-emerald-400 font-bold">{mxPct}%</span>}
+          </button>
+
+          <div className="text-center shrink-0">
+            <p className="text-[10px] font-black text-gray-500">VS</p>
+            <p className="text-[9px] text-gray-700 mt-1">11 JUN</p>
+            <p className="text-[9px] text-gray-700">{wcLocalTime} MX</p>
+          </div>
+
+          <button onClick={() => castVote('TBD')}
+            className={`flex flex-col items-center gap-1 flex-1 py-2 rounded-lg transition-all ${voted === 'TBD' ? 'bg-blue-900/40 ring-1 ring-blue-500' : 'hover:bg-white/5'} ${voted && voted !== 'TBD' ? 'opacity-50' : ''}`}>
+            <span className="text-3xl">🏳️</span>
+            <span className="text-[10px] text-gray-500 font-medium">Por definir</span>
+            {voted && <span className="text-[10px] text-blue-400 font-bold">{tbdPct}%</span>}
+          </button>
+        </div>
+
+        {/* Vote bar */}
+        <div className="flex h-1.5 rounded-full overflow-hidden bg-gray-800">
+          <div className="bg-emerald-500 transition-all duration-500" style={{ width: `${voted ? mxPct : 50}%` }} />
+          <div className="bg-blue-500 transition-all duration-500" style={{ width: `${voted ? tbdPct : 50}%` }} />
+        </div>
+        {!voted && <p className="text-[9px] text-gray-700 text-center mt-1">Toca para votar</p>}
+
+        <p className="text-[9px] text-gray-700 text-center mt-2">📍 Estadio Azteca · Ciudad de México</p>
+      </div>
+
+      {/* Favorites to win */}
+      <div className="px-3 pb-3">
+        <p className="text-[9px] text-yellow-700 uppercase tracking-widest font-bold mb-2">Favoritos para ganar</p>
+        <div className="space-y-1">
+          {WC_FAVORITES.map(f => (
+            <div key={f.name} className="flex items-center gap-2">
+              <span className="text-sm w-5 shrink-0">{f.flag}</span>
+              <span className="text-[10px] text-gray-500 w-16 truncate">{f.name}</span>
+              <div className="flex-1 bg-gray-800/60 rounded-full h-1 overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-yellow-600 to-yellow-400 rounded-full" style={{ width: `${f.pct * 5}%` }} />
+              </div>
+              <span className="text-[10px] text-yellow-500 font-mono w-7 text-right">{f.pct}%</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-[9px] text-gray-700 mt-2 text-center">Probabilidades basadas en ranking FIFA</p>
+      </div>
+    </div>
+  )
+}
+
 /* ─── Value bet card ─── */
 function VBCard({ event, leagueCode }) {
   const p = event.model_prediction
@@ -783,13 +907,16 @@ export default function Dashboard() {
         </div>
 
         {/* RIGHT panel */}
-        <div className="w-64 bg-[#060b15] border-l border-gray-800/50 flex flex-col shrink-0">
+        <div className="w-64 bg-[#060b15] border-l border-gray-800/50 flex flex-col shrink-0 overflow-y-auto">
+          {/* World Cup Widget */}
+          <WorldCupWidget now={now} />
+
           {/* Value bets */}
           <div className="px-3 py-2.5 border-b border-gray-800/40 flex items-center justify-between shrink-0">
             <span className="text-[10px] text-emerald-400 uppercase tracking-widest font-bold">⚡ Value Bets</span>
             <span className="text-[10px] text-gray-700">{valueBets.length}</span>
           </div>
-          <div className="overflow-y-auto" style={{ maxHeight: '50%' }}>
+          <div className="overflow-y-auto max-h-40">
             {!hasOdds && <div className="p-4 text-[11px] text-gray-700 text-center">Sin Odds API key</div>}
             {hasOdds && !trained && <div className="p-4 text-[11px] text-gray-700 text-center">Inicializa las ligas</div>}
             {loadingBets && <div className="p-4 text-[11px] text-gray-700 animate-pulse text-center">Analizando…</div>}
