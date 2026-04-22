@@ -5,7 +5,10 @@ import { LEAGUES } from '../utils/odds'
 import MatchCard from '../components/MatchCard'
 import { Link } from 'react-router-dom'
 
-const api = axios.create({ baseURL: '/api' })
+const BASE = import.meta.env.VITE_API_URL
+  ? import.meta.env.VITE_API_URL.replace(/\/$/, '')
+  : '/api'
+const api = axios.create({ baseURL: BASE })
 
 export default function Dashboard() {
   const [activeLeague, setActiveLeague] = useState('PL')
