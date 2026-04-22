@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import init_db
-from .routers import leagues, matches, analytics, setup
+from .routers import leagues, matches, analytics, setup, news
 
 logger = logging.getLogger("sports_analytics")
 
@@ -41,6 +41,7 @@ app.include_router(leagues.router)
 app.include_router(matches.router)
 app.include_router(analytics.router)
 app.include_router(setup.router)
+app.include_router(news.router)
 
 
 @app.get("/")
