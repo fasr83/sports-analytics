@@ -201,6 +201,48 @@ async def get_arbitrage_opportunities(league_code: str):
     return {"league": league_code, "opportunities": arb_opportunities, "count": len(arb_opportunities)}
 
 
+@router.get("/top-picks")
+async def get_top_picks(min_confidence: float = 0.52, limit: int = 30):
+    """Aggregate best predictions across all trained leagues."""
+    from .setup import get_demo_fixtures
+    all_picks = []
+    for league_code, league_info in LEAGUES.items():
+        model = get_model(league_code)
+        if not model.fitted:
+            continue
+        fixtures = get_demo_fixtures(league_code)
+        for f in fixtures[:10]:
+            try:
+                pred = model.predict(f["home_team"], f["away_team"])
+                top_scores = model.get_top_scores(f["home_team"], f["away_team"], top_n=1)
+                max_prob = max(pred["prob_home"], pred["prob_draw"], pred["prob_away"])
+                if pred["prob_home"] == max_prob:
+                    pick, pick_label = "1", f["home_team"]
+                elif pred["prob_away"] == max_prob:
+                    pick, pick_label = "2", f["away_team"]
+                else:
+                    pick, pick_label = "X", "Empate"
+                if max_prob >= min_confidence:
+                    all_picks.append({
+                        "league_code": league_code,
+                        "league_name": league_info["name"],
+                        "home_team": f["home_team"],
+                        "away_team": f["away_team"],
+                        "date": f.get("date"),
+                        "pick": pick,
+                        "pick_label": pick_label,
+                        "confidence": round(max_prob, 4),
+                        "prob_home": round(pred["prob_home"], 4),
+                        "prob_draw": round(pred["prob_draw"], 4),
+                        "prob_away": round(pred["prob_away"], 4),
+                        "top_score": top_scores[0] if top_scores else None,
+                    })
+            except Exception:
+                pass
+    all_picks.sort(key=lambda x: x["confidence"], reverse=True)
+    return {"picks": all_picks[:limit], "total": len(all_picks)}
+
+
 @router.get("/{league_code}/upcoming-predictions")
 async def get_upcoming_with_predictions(league_code: str):
     model = get_model(league_code)

@@ -70,13 +70,13 @@ function Tag({ children, color = 'gray' }) {
 function WorldClockBar({ now }) {
   const fmt = tz => new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: tz }).format(now)
   return (
-    <div className="flex items-center gap-6 px-4 py-1 bg-[#050a12] border-b border-gray-800/30 text-[10px] overflow-x-auto shrink-0">
-      <span className="text-gray-700 font-bold uppercase tracking-widest shrink-0">Hora mundial</span>
+    <div className="flex items-center gap-5 px-4 py-1.5 bg-[#030610] border-b border-gray-800/50 text-[10px] overflow-x-auto shrink-0">
+      <span className="text-gray-400 font-black uppercase tracking-widest shrink-0">🌐 Hora</span>
       {WORLD_CLOCKS.map(c => (
-        <div key={c.tz} className="flex items-center gap-1 shrink-0">
-          <span>{c.flag}</span>
-          <span className="text-gray-600">{c.city}</span>
-          <span className="text-white font-mono font-bold">{fmt(c.tz)}</span>
+        <div key={c.tz} className="flex items-center gap-1.5 shrink-0">
+          <span className="text-sm">{c.flag}</span>
+          <span className="text-gray-400 font-medium">{c.city}</span>
+          <span className="text-white font-mono font-black">{fmt(c.tz)}</span>
         </div>
       ))}
     </div>
@@ -103,45 +103,152 @@ function Ticker({ news }) {
 }
 
 /* ─── Match row ─── */
-function MatchRow({ m, leagueCode }) {
+function MatchRow({ m, leagueCode, bkData }) {
+  const [open, setOpen] = useState(false)
   const date = m.date ? format(parseISO(m.date), 'd MMM HH:mm', { locale: es }) : '?'
   const col = m.date ? new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Bogota' }).format(new Date(m.date)) : null
-  const p = m.model_prediction
+  const p = m.model_prediction ?? m.prediction
+  const ts = m.top_scores
   const hasResult = m.home_goals != null
   const chs = TV_CHANNELS[leagueCode] ?? []
+
+  const bestScore = ts?.[0]
+  const maxProb = p ? Math.max(p.prob_home, p.prob_draw, p.prob_away) : 0
+  const pick = p ? (p.prob_home === maxProb ? '1' : p.prob_away === maxProb ? '2' : 'X') : null
+  const pickBg = { '1': 'bg-emerald-600', 'X': 'bg-gray-600', '2': 'bg-blue-600' }
+
+  // Bookmaker odds from value-bets data
+  const bks = bkData?.bookmakers ?? []
+
   return (
-    <div className={`group border-b border-gray-800/30 px-4 py-3 hover:bg-white/[0.02] transition-colors ${m.has_value ? 'border-l-2 border-l-emerald-500' : ''}`}>
-      <div className="flex items-center gap-3">
-        <div className="w-24 shrink-0">
-          <p className="text-[10px] text-gray-600">{date}</p>
-          {col && <p className="text-[9px] text-amber-600/80">🇨🇴 {col}</p>}
+    <div className={`border-b border-gray-800/40 transition-colors ${m.has_value ? 'border-l-[3px] border-l-emerald-400' : 'border-l-[3px] border-l-transparent'} ${open ? 'bg-[#0c1425]' : 'hover:bg-white/[0.025]'}`}>
+      <button className="w-full text-left px-4 py-3" onClick={() => setOpen(o => !o)}>
+        <div className="flex items-center gap-3">
+          {/* Date col */}
+          <div className="w-20 shrink-0">
+            <p className="text-[10px] text-gray-400 font-medium">{date}</p>
+            {col && <p className="text-[9px] text-yellow-500/80 font-medium">🇨🇴 {col}</p>}
+          </div>
+          {/* Teams */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <span className="text-sm text-white text-right flex-1 truncate font-semibold">{m.home_team}</span>
+            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded shrink-0 ${hasResult ? 'bg-gray-700 text-white' : 'text-gray-500'}`}>
+              {hasResult ? `${m.home_goals}–${m.away_goals}` : 'VS'}
+            </span>
+            <span className="text-sm text-white text-left flex-1 truncate font-semibold">{m.away_team}</span>
+          </div>
+          {/* Probs */}
+          {p && (
+            <div className="flex gap-1 shrink-0">
+              <span className="text-xs text-emerald-400 w-9 text-center font-bold">{(p.prob_home * 100).toFixed(0)}%</span>
+              <span className="text-xs text-gray-500 w-9 text-center">{(p.prob_draw * 100).toFixed(0)}%</span>
+              <span className="text-xs text-blue-400 w-9 text-center font-bold">{(p.prob_away * 100).toFixed(0)}%</span>
+            </div>
+          )}
+          {/* Pick badge */}
+          {pick && <span className={`text-[10px] font-black w-6 h-6 rounded flex items-center justify-center text-white shrink-0 ${pickBg[pick]}`}>{pick}</span>}
+          {m.has_value && <span className="text-[9px] font-bold px-1.5 py-0.5 bg-emerald-500 text-black rounded shrink-0">VALUE</span>}
+          <span className="text-gray-600 text-[10px] shrink-0 ml-1">{open ? '▲' : '▼'}</span>
         </div>
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-sm text-white text-right flex-1 truncate font-medium">{m.home_team}</span>
-          <span className="text-xs font-bold text-gray-500 w-12 text-center shrink-0">
-            {hasResult ? `${m.home_goals} – ${m.away_goals}` : 'vs'}
-          </span>
-          <span className="text-sm text-white text-left flex-1 truncate font-medium">{m.away_team}</span>
-        </div>
+        {/* Prob bar */}
         {p && (
-          <div className="flex gap-0.5 shrink-0">
-            <span className="text-[11px] text-emerald-400 w-9 text-center font-mono">{(p.prob_home * 100).toFixed(0)}%</span>
-            <span className="text-[11px] text-gray-600 w-9 text-center font-mono">{(p.prob_draw * 100).toFixed(0)}%</span>
-            <span className="text-[11px] text-blue-400 w-9 text-center font-mono">{(p.prob_away * 100).toFixed(0)}%</span>
+          <div className="mt-2 flex h-1.5 rounded-full overflow-hidden ml-20 gap-0.5">
+            <div className="bg-emerald-500 rounded-l-full" style={{ width: `${p.prob_home * 100}%` }} />
+            <div className="bg-gray-600" style={{ width: `${p.prob_draw * 100}%` }} />
+            <div className="bg-blue-500 rounded-r-full ml-auto" style={{ width: `${p.prob_away * 100}%` }} />
           </div>
         )}
-        {m.has_value && <Tag color="green">VALUE</Tag>}
-      </div>
-      {p && (
-        <div className="mt-1.5 flex h-1 rounded-full overflow-hidden ml-24">
-          <div className="bg-emerald-500/70" style={{ width: `${p.prob_home * 100}%` }} />
-          <div className="bg-gray-700" style={{ width: `${p.prob_draw * 100}%` }} />
-          <div className="bg-blue-500/70" style={{ width: `${p.prob_away * 100}%` }} />
-        </div>
-      )}
-      {chs.length > 0 && (
-        <div className="mt-1 ml-24 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {chs.map(ch => <Tag key={ch}>📺 {ch}</Tag>)}
+      </button>
+
+      {/* Expanded panel */}
+      {open && (
+        <div className="mx-4 mb-3 rounded-xl border border-gray-700/50 bg-[#070c1a] overflow-hidden">
+          <div className={`grid divide-x divide-gray-800/40 ${bks.length ? 'grid-cols-3' : 'grid-cols-2'}`}>
+
+            {/* Pronóstico */}
+            <div className="p-3">
+              <p className="text-[9px] text-gray-500 uppercase tracking-widest font-bold mb-2">Pronóstico IA</p>
+              {p ? (
+                <>
+                  <div className="flex gap-1.5 mb-2">
+                    {[['1', p.prob_home, 'bg-emerald-900/60 ring-emerald-700 text-emerald-300'], ['X', p.prob_draw, 'bg-gray-800/60 ring-gray-600 text-gray-300'], ['2', p.prob_away, 'bg-blue-900/60 ring-blue-700 text-blue-300']].map(([l, v, cls]) => (
+                      <div key={l} className={`flex-1 text-center py-2 rounded-lg ring-1 ${cls} ${l === pick ? 'ring-2 brightness-125' : ''}`}>
+                        <p className="text-sm font-black">{l}</p>
+                        <p className="text-[10px] font-bold font-mono">{(v * 100).toFixed(0)}%</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-gray-500 text-center">Confianza <span className="text-white font-bold">{(maxProb * 100).toFixed(0)}%</span></p>
+                </>
+              ) : <p className="text-[11px] text-gray-600">Sin modelo</p>}
+
+              {/* Score prediction */}
+              {ts?.length > 0 && (
+                <div className="mt-3 pt-2 border-t border-gray-800/40">
+                  <p className="text-[9px] text-gray-500 uppercase tracking-widest font-bold mb-1.5">Marcadores probables</p>
+                  {ts.slice(0, 4).map((s, i) => (
+                    <div key={i} className="flex items-center gap-2 mb-1">
+                      <span className={`text-xs font-bold w-8 ${i === 0 ? 'text-emerald-400' : 'text-gray-500'}`}>{s.home_goals}–{s.away_goals}</span>
+                      <div className="flex-1 bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                        <div className="h-full bg-emerald-600/80 rounded-full" style={{ width: `${(s.probability * 100).toFixed(0)}%` }} />
+                      </div>
+                      <span className="text-[10px] text-gray-500 font-mono w-9 text-right">{(s.probability * 100).toFixed(1)}%</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Cuotas de casas */}
+            {bks.length > 0 && (
+              <div className="p-3">
+                <p className="text-[9px] text-gray-500 uppercase tracking-widest font-bold mb-2">Cuotas en vivo</p>
+                <div className="flex text-[9px] text-gray-600 uppercase tracking-widest font-bold mb-1 px-1">
+                  <span className="flex-1">Casa</span><span className="w-9 text-center">1</span><span className="w-9 text-center">X</span><span className="w-9 text-center">2</span>
+                </div>
+                <div className="space-y-1">
+                  {bks.slice(0, 8).map((bk, i) => {
+                    const best1 = p && bk.is_value_home
+                    const bestX = p && bk.is_value_draw
+                    const best2 = p && bk.is_value_away
+                    return (
+                      <div key={i} className="flex items-center text-xs bg-gray-900/40 rounded px-1.5 py-1">
+                        <span className="flex-1 text-gray-400 truncate text-[10px]">{bk.bookmaker}</span>
+                        <span className={`w-9 text-center font-mono font-bold ${best1 ? 'text-emerald-400' : 'text-gray-300'}`}>{bk.odds_home?.toFixed(2) ?? '-'}</span>
+                        <span className={`w-9 text-center font-mono font-bold ${bestX ? 'text-yellow-400' : 'text-gray-300'}`}>{bk.odds_draw?.toFixed(2) ?? '-'}</span>
+                        <span className={`w-9 text-center font-mono font-bold ${best2 ? 'text-blue-400' : 'text-gray-300'}`}>{bk.odds_away?.toFixed(2) ?? '-'}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* TV + info */}
+            <div className="p-3">
+              <p className="text-[9px] text-gray-500 uppercase tracking-widest font-bold mb-2">TV y más info</p>
+              {chs.length > 0 ? (
+                <div className="space-y-1.5 mb-3">
+                  {chs.map(ch => (
+                    <div key={ch} className="flex items-center gap-2 bg-gray-800/40 rounded-lg px-2 py-1.5">
+                      <span className="text-sm">📺</span>
+                      <span className="text-xs text-gray-200 font-medium">{ch}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[11px] text-gray-600 mb-3">Sin info de TV</p>
+              )}
+              {bestScore && (
+                <div className="bg-emerald-950/30 border border-emerald-800/30 rounded-lg p-2 text-center">
+                  <p className="text-[9px] text-emerald-600 uppercase tracking-widest font-bold">Pred. IA más probable</p>
+                  <p className="text-xl font-black text-emerald-400 mt-0.5">{bestScore.home_goals}–{bestScore.away_goals}</p>
+                  <p className="text-[10px] text-emerald-700">{(bestScore.probability * 100).toFixed(1)}% probabilidad</p>
+                </div>
+              )}
+            </div>
+
+          </div>
         </div>
       )}
     </div>
@@ -553,6 +660,138 @@ function NewsPanel({ news, loading }) {
   )
 }
 
+/* ─── Fichajes panel ─── */
+const TRANSFER_KEYWORDS = ['fichaj', 'transfer', 'contrat', 'firma', 'renov', ' llega', ' sale ', 'vende', 'traspas', 'cedid', 'incorpor', ' ficha', 'rescind', 'mercado', 'refuerzo', 'signing', 'signed', 'deal', 'move', 'joins', 'leaves']
+
+function FichajesPanel({ news, loading }) {
+  const transfers = news.filter(n => {
+    const text = (n.title + ' ' + n.description).toLowerCase()
+    return TRANSFER_KEYWORDS.some(kw => text.includes(kw))
+  })
+
+  if (loading) return <div className="p-8 text-center text-gray-600 animate-pulse">Cargando fichajes...</div>
+  if (!transfers.length) return (
+    <div className="p-12 text-center">
+      <p className="text-3xl mb-2">🔄</p>
+      <p className="text-gray-600 text-sm">Sin noticias de fichajes recientes</p>
+      <p className="text-gray-700 text-[11px] mt-1">Las noticias de transferencias aparecerán aquí</p>
+    </div>
+  )
+  return (
+    <div className="divide-y divide-gray-800/30">
+      {/* Header stat */}
+      <div className="px-4 py-2 bg-blue-950/20 flex items-center gap-2">
+        <span className="text-lg">🔄</span>
+        <span className="text-[10px] text-blue-400 font-bold uppercase tracking-widest">{transfers.length} movimientos</span>
+      </div>
+      {transfers.map((item, i) => (
+        <a key={i} href={item.link} target="_blank" rel="noopener noreferrer"
+          className="flex gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors group">
+          <div className="shrink-0 w-8 h-8 rounded-lg bg-blue-900/30 border border-blue-800/30 flex items-center justify-center">
+            <span className="text-base">🔄</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-gray-200 group-hover:text-white transition-colors line-clamp-2 leading-snug font-medium">{item.title}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-[10px] font-bold text-blue-500 uppercase">{item.source?.slice(0, 8)}</span>
+              {item.pub_date && <span className="text-[10px] text-gray-700">{item.pub_date.slice(0, 16)}</span>}
+            </div>
+          </div>
+        </a>
+      ))}
+    </div>
+  )
+}
+
+/* ─── Picks IA panel ─── */
+const PICK_COLOR = { '1': { bg: 'bg-emerald-900/40', ring: 'ring-emerald-700', text: 'text-emerald-400', label: 'Local' }, 'X': { bg: 'bg-gray-800/40', ring: 'ring-gray-600', text: 'text-gray-300', label: 'Empate' }, '2': { bg: 'bg-blue-900/40', ring: 'ring-blue-700', text: 'text-blue-400', label: 'Visitante' } }
+
+function PicksPanel({ picks, loading }) {
+  const [filter, setFilter] = useState('all')
+  if (loading) return <div className="p-8 text-center text-gray-600 animate-pulse">Analizando partidos...</div>
+  if (!picks.length) return (
+    <div className="p-12 text-center">
+      <p className="text-3xl mb-2">🎯</p>
+      <p className="text-gray-600 text-sm">Inicializa las ligas para ver picks</p>
+    </div>
+  )
+
+  const filtered = filter === 'all' ? picks : picks.filter(p => p.pick === filter)
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Filter bar */}
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-800/40 bg-gray-900/30 shrink-0">
+        <span className="text-[10px] text-gray-600 uppercase tracking-widest font-bold mr-1">Filtrar:</span>
+        {[['all', 'Todos', 'text-white'], ['1', 'Local', 'text-emerald-400'], ['X', 'Empate', 'text-gray-300'], ['2', 'Visitante', 'text-blue-400']].map(([v, l, c]) => (
+          <button key={v} onClick={() => setFilter(v)}
+            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${filter === v ? 'bg-white/10' : 'hover:bg-white/5'} ${c}`}>
+            {l}
+          </button>
+        ))}
+        <div className="flex-1" />
+        <span className="text-[10px] text-gray-700">{filtered.length} picks</span>
+      </div>
+
+      {/* Picks list */}
+      <div className="flex-1 overflow-y-auto divide-y divide-gray-800/30">
+        {filtered.map((pick, i) => {
+          const cfg = PICK_COLOR[pick.pick]
+          const lg = LEAGUES.find(l => l.code === pick.league_code)
+          const colTime = pick.date ? new Intl.DateTimeFormat('es', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Bogota' }).format(new Date(pick.date)) : null
+          return (
+            <div key={i} className="px-4 py-3 hover:bg-white/[0.02] transition-colors">
+              {/* League + date */}
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="text-sm">{lg?.flag ?? '⚽'}</span>
+                <span className="text-[10px] text-gray-600 font-medium">{pick.league_name}</span>
+                {colTime && <span className="text-[10px] text-gray-700 ml-auto">🇨🇴 {colTime}</span>}
+              </div>
+              {/* Teams */}
+              <div className="flex items-center gap-2 mb-2.5">
+                <span className="text-xs text-white font-semibold flex-1 text-right truncate">{pick.home_team}</span>
+                <span className="text-[10px] text-gray-600 shrink-0">vs</span>
+                <span className="text-xs text-white font-semibold flex-1 truncate">{pick.away_team}</span>
+              </div>
+              {/* Pick badge + confidence */}
+              <div className="flex items-center gap-2">
+                <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ring-1 ${cfg.bg} ${cfg.ring}`}>
+                  <span className={`text-base font-black ${cfg.text}`}>{pick.pick}</span>
+                  <span className={`text-[10px] font-bold ${cfg.text}`}>{cfg.label}</span>
+                </div>
+                <div className="flex-1">
+                  <div className="flex h-1.5 rounded-full overflow-hidden bg-gray-800">
+                    <div className="bg-emerald-500/70" style={{ width: `${pick.prob_home * 100}%` }} />
+                    <div className="bg-gray-600" style={{ width: `${pick.prob_draw * 100}%` }} />
+                    <div className="bg-blue-500/70" style={{ width: `${pick.prob_away * 100}%` }} />
+                  </div>
+                  <div className="flex justify-between text-[9px] text-gray-700 mt-0.5">
+                    <span>{(pick.prob_home * 100).toFixed(0)}%</span>
+                    <span>{(pick.prob_draw * 100).toFixed(0)}%</span>
+                    <span>{(pick.prob_away * 100).toFixed(0)}%</span>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className={`text-sm font-black ${cfg.text}`}>{(pick.confidence * 100).toFixed(0)}%</p>
+                  <p className="text-[9px] text-gray-700">confianza</p>
+                </div>
+              </div>
+              {/* Predicted score */}
+              {pick.top_score && (
+                <div className="mt-2 flex items-center gap-1.5">
+                  <span className="text-[9px] text-gray-700 uppercase tracking-widest">Marcador IA</span>
+                  <span className="text-xs font-bold text-gray-400">{pick.top_score.home_goals}–{pick.top_score.away_goals}</span>
+                  <span className="text-[9px] text-gray-700">({(pick.top_score.probability * 100).toFixed(1)}%)</span>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 /* ─── World Cup 2026 Widget ─── */
 const WC_FAVORITES = [
   { flag: '🇧🇷', name: 'Brasil',    pct: 18 },
@@ -747,6 +986,11 @@ export default function Dashboard() {
   const { data: predData } = useQuery({ queryKey: ['upcoming-predictions', activeLeague], queryFn: () => api.get(`/analytics/${activeLeague}/upcoming-predictions`).then(r => r.data), enabled: trained, staleTime: 600000 })
   const { data: newsData, isLoading: loadingNews } = useNews()
   const { data: ytData,   isLoading: loadingYT }   = useYouTube()
+  const { data: picksData, isLoading: loadingPicks } = useQuery({
+    queryKey: ['top-picks'],
+    queryFn: () => api.get('/analytics/top-picks').then(r => r.data),
+    staleTime: 300000, refetchInterval: 300000,
+  })
 
   const { mutate: initReal, isPending: initing } = useMutation({
     mutationFn: () => api.post('/setup/init-real').then(r => r.data),
@@ -760,45 +1004,68 @@ export default function Dashboard() {
   const standings  = standingsData?.standings ?? []
   const news       = newsData?.news ?? []
   const videos     = ytData?.videos ?? []
+  const picks      = picksData?.picks ?? []
   const activeLg   = LEAGUES.find(l => l.code === activeLeague)
 
   const TABS = [
     { id: 'matches',   label: '📅 Partidos' },
+    { id: 'picks',     label: '🎯 Picks IA' },
     { id: 'standings', label: '📊 Clasificación' },
     { id: 'compare',   label: '🆚 Comparar' },
+    { id: 'fichajes',  label: '🔄 Fichajes' },
     { id: 'youtube',   label: '📺 Canales' },
     { id: 'news',      label: '📰 Noticias' },
   ]
 
+  // Map value-bet events by team pair for odds lookup in match rows
+  const vbByMatch = {}
+  for (const e of allEvents) {
+    vbByMatch[`${e.home_team}|${e.away_team}`] = e
+  }
+
+  const GROUP_COLORS = {
+    Europa:        'text-sky-400 border-sky-900/40 bg-sky-950/20',
+    Internacional: 'text-violet-400 border-violet-900/40 bg-violet-950/20',
+    América:       'text-emerald-400 border-emerald-900/40 bg-emerald-950/20',
+    Mundial:       'text-yellow-400 border-yellow-900/40 bg-yellow-950/20',
+    Otros:         'text-orange-400 border-orange-900/40 bg-orange-950/20',
+  }
+
   return (
-    <div className="flex flex-col h-[calc(100vh-56px)] overflow-hidden bg-[#080d18]">
+    <div className="flex flex-col h-[calc(100vh-56px)] overflow-hidden bg-[#06090f]">
 
       {/* ── Top status bar ── */}
-      <div className="flex items-center gap-4 px-4 py-2 bg-[#060b15] border-b border-gray-800/50 text-[11px] shrink-0">
-        <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-3 px-4 py-1.5 bg-[#040710] border-b border-gray-800/60 text-[11px] shrink-0 overflow-x-auto">
+        <div className="flex items-center gap-1.5 shrink-0">
           <Dot on />
-          <span className="text-emerald-400 font-mono font-bold">{now.toUTCString().slice(17, 25)} UTC</span>
+          <span className="text-emerald-300 font-mono font-bold">{now.toUTCString().slice(17, 25)} UTC</span>
         </div>
-        <span className="text-gray-700">|</span>
-        <span className="text-gray-500">Ligas <span className="text-white font-bold">{trainedCnt}/{LEAGUES.length}</span></span>
-        <span className="text-gray-700">|</span>
-        <span className="text-gray-500">Value bets <span className="text-emerald-400 font-bold">{valueBets.length}</span></span>
-        <span className="text-gray-700">|</span>
-        <span className="text-gray-500">Arbitraje <span className="text-amber-400 font-bold">{arbs.length}</span></span>
+        {[
+          ['Ligas', `${trainedCnt}/${LEAGUES.length}`, 'text-white'],
+          ['Value bets', valueBets.length, valueBets.length > 0 ? 'text-emerald-300' : 'text-gray-600'],
+          ['Arbitraje', arbs.length, arbs.length > 0 ? 'text-amber-300' : 'text-gray-600'],
+          ['Picks IA', picks.length, picks.length > 0 ? 'text-violet-300' : 'text-gray-600'],
+        ].map(([label, val, cls]) => (
+          <div key={label} className="flex items-center gap-1.5 shrink-0">
+            <div className="w-px h-4 bg-gray-800" />
+            <span className="text-gray-500">{label}</span>
+            <span className={`font-black ${cls}`}>{val}</span>
+          </div>
+        ))}
         {wc && (
-          <>
-            <span className="text-gray-700">|</span>
-            <div className="flex items-center gap-1.5">
-              <span>⚽</span>
-              <span className="text-gray-500">Mundial 2026</span>
-              <span className="font-mono font-bold text-yellow-400">{wc.d}d {String(wc.h).padStart(2,'0')}h {String(wc.m).padStart(2,'0')}m {String(wc.s).padStart(2,'0')}s</span>
-            </div>
-          </>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className="w-px h-4 bg-gray-800" />
+            <span>⚽</span>
+            <span className="text-gray-500">Mundial 2026</span>
+            <span className="font-mono font-black text-yellow-300">
+              {wc.d}d {String(wc.h).padStart(2,'0')}:{String(wc.m).padStart(2,'0')}:{String(wc.s).padStart(2,'0')}
+            </span>
+          </div>
         )}
         <div className="flex-1" />
         {anyUntrained && (
           <button onClick={() => initReal()} disabled={initing}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-[11px] font-semibold transition-colors">
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-[11px] font-black transition-colors shadow-emerald-900/40 shadow-lg shrink-0">
             {initing ? '⏳ Inicializando…' : '🚀 Inicializar ligas'}
           </button>
         )}
@@ -811,15 +1078,18 @@ export default function Dashboard() {
       <div className="flex flex-1 min-h-0">
 
         {/* LEFT sidebar */}
-        <div className="w-52 bg-[#060b15] border-r border-gray-800/50 flex flex-col shrink-0">
-          <div className="px-3 py-2 text-[10px] text-gray-400 uppercase tracking-widest font-bold border-b border-gray-800/40">Ligas</div>
+        <div className="w-52 bg-[#040710] border-r border-gray-800/60 flex flex-col shrink-0">
+          <div className="px-3 py-2 text-[10px] text-gray-200 uppercase tracking-widest font-black border-b border-gray-800/60 flex items-center gap-1.5 bg-emerald-950/20">
+            <span className="text-emerald-400">◆</span> Ligas
+          </div>
           <div className="flex-1 overflow-y-auto">
             {Object.entries(LEAGUE_GROUPS).map(([groupKey, groupMeta]) => {
               const groupLeagues = LEAGUES.filter(l => l.group === groupKey)
               if (!groupLeagues.length) return null
+              const gcls = GROUP_COLORS[groupKey] ?? 'text-gray-400 border-gray-800/20 bg-black/10'
               return (
                 <div key={groupKey}>
-                  <div className="px-3 py-1.5 text-[10px] text-gray-600 uppercase tracking-widest font-bold bg-gray-900/40 border-b border-gray-800/20 flex items-center gap-1.5">
+                  <div className={`px-3 py-1.5 text-[10px] uppercase tracking-widest font-black border-b flex items-center gap-1.5 ${gcls}`}>
                     <span>{groupMeta.icon}</span>{groupMeta.label}
                   </div>
                   {groupLeagues.map(l => {
@@ -827,11 +1097,11 @@ export default function Dashboard() {
                     const active = activeLeague === l.code
                     return (
                       <button key={l.code} onClick={() => { setActiveLeague(l.code); setTab('matches') }}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-left border-b border-gray-800/20 transition-colors ${active ? 'bg-emerald-950/30 border-l-2 border-l-emerald-500' : 'hover:bg-white/[0.03]'}`}>
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-left border-b border-gray-800/20 transition-all ${active ? 'bg-emerald-950/40 border-l-[3px] border-l-emerald-400' : 'border-l-[3px] border-l-transparent hover:bg-white/[0.04] hover:border-l-gray-700'}`}>
                         <span className="text-sm shrink-0">{l.flag}</span>
                         <div className="flex-1 min-w-0">
-                          <p className={`text-xs truncate font-medium ${active ? 'text-white' : 'text-gray-300'}`}>{l.name}</p>
-                          {ls && <p className="text-[10px] text-gray-600">{ls.teams_in_model} equipos</p>}
+                          <p className={`text-xs truncate font-semibold ${active ? 'text-white' : 'text-gray-200'}`}>{l.name}</p>
+                          {ls && <p className="text-[10px] text-gray-500">{ls.teams_in_model} equipos</p>}
                         </div>
                         <Dot on={ls?.model_trained} />
                       </button>
@@ -843,29 +1113,41 @@ export default function Dashboard() {
           </div>
 
           {/* Mini stats */}
-          <div className="border-t border-gray-800/40 p-3 space-y-2 shrink-0">
-            <p className="text-[10px] text-gray-700 uppercase tracking-widest font-bold">Resumen</p>
-            {[['Value bets', valueBets.length, 'text-emerald-400'], ['Arbitraje', arbs.length, 'text-amber-400'], ['Partidos', fixtures.length, 'text-white'], ['Noticias', news.length, 'text-blue-400']].map(([l, v, cls]) => (
-              <div key={l} className="flex justify-between text-[11px]">
-                <span className="text-gray-600">{l}</span>
-                <span className={`font-bold ${cls}`}>{v}</span>
+          <div className="border-t border-gray-800/50 p-3 shrink-0 bg-black/30 space-y-1.5">
+            <p className="text-[10px] text-gray-300 uppercase tracking-widest font-black mb-2">Resumen</p>
+            {[
+              ['Value bets', valueBets.length, 'text-emerald-300 bg-emerald-950/50 border-emerald-800/40'],
+              ['Arbitraje',  arbs.length,       'text-amber-300 bg-amber-950/50 border-amber-800/40'],
+              ['Partidos',   fixtures.length,   'text-white bg-gray-800/50 border-gray-700/40'],
+              ['Noticias',   news.length,       'text-sky-300 bg-sky-950/50 border-sky-800/40'],
+            ].map(([l, v, cls]) => (
+              <div key={l} className="flex justify-between items-center">
+                <span className="text-gray-300 text-[11px]">{l}</span>
+                <span className={`text-xs font-black px-2 py-0.5 rounded border ${cls}`}>{v}</span>
               </div>
             ))}
-            <Link to={`/league/${activeLeague}`} className="block w-full text-center text-[10px] text-emerald-700 hover:text-emerald-400 mt-2 transition-colors">Ver {activeLg?.name} →</Link>
+            <Link to={`/league/${activeLeague}`}
+              className="block w-full text-center text-[10px] text-emerald-400 hover:text-emerald-300 mt-2 font-bold transition-colors">
+              Ver {activeLg?.name} →
+            </Link>
           </div>
         </div>
 
         {/* CENTER */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Tab bar */}
-          <div className="flex border-b border-gray-800/50 bg-[#060b15]/60 shrink-0">
-            <div className="px-4 py-2.5 text-xs text-gray-500 font-medium shrink-0 flex items-center gap-1.5">
-              <span>{activeLg?.flag}</span><span>{activeLg?.name}</span>
+          <div className="flex border-b border-gray-800/60 bg-[#040710] shrink-0 overflow-x-auto">
+            <div className="px-3 py-2 shrink-0 flex items-center gap-2 border-r border-gray-800/40">
+              <span className="text-xl leading-none">{activeLg?.flag}</span>
+              <span className="text-sm text-white font-bold">{activeLg?.name}</span>
             </div>
-            <div className="w-px bg-gray-800/50 my-1.5" />
             {TABS.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
-                className={`px-4 py-2.5 text-xs font-medium border-b-2 transition-all whitespace-nowrap ${tab === t.id ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-gray-600 hover:text-gray-300'}`}>
+                className={`px-4 py-2 text-xs font-bold border-b-2 transition-all whitespace-nowrap ${
+                  tab === t.id
+                    ? 'border-emerald-400 text-emerald-300 bg-emerald-950/20'
+                    : 'border-transparent text-gray-400 hover:text-gray-100 hover:bg-white/[0.03]'
+                }`}>
                 {t.label}
               </button>
             ))}
@@ -877,22 +1159,29 @@ export default function Dashboard() {
             {/* Partidos */}
             {tab === 'matches' && (
               <div>
-                <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-800/30 bg-gray-900/20">
-                  <span className="text-[10px] text-gray-600 uppercase tracking-widest">Próximos partidos</span>
-                  {!trained && <span className="text-[10px] text-amber-600">— modelo no inicializado</span>}
+                <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-800/40 bg-black/20">
+                  <span className="text-[10px] text-gray-300 font-bold uppercase tracking-widest">Próximos partidos</span>
+                  {!trained && <span className="text-[10px] text-amber-400 font-medium">— sin modelo</span>}
                   <div className="flex-1" />
-                  <div className="flex gap-3 text-[10px] text-gray-700">
-                    <span className="text-emerald-700">1</span><span>X</span><span className="text-blue-700">2</span>
+                  <div className="flex gap-2 text-[10px] font-black mr-6">
+                    <span className="text-emerald-400 w-9 text-center">1</span>
+                    <span className="text-gray-400 w-9 text-center">X</span>
+                    <span className="text-blue-400 w-9 text-center">2</span>
                   </div>
                 </div>
                 {fixtures.length === 0
-                  ? <div className="p-12 text-center text-gray-600">{initing ? '⏳ Cargando datos…' : 'Sin partidos. Inicializa las ligas.'}</div>
-                  : fixtures.map((m, i) => <MatchRow key={i} m={m} leagueCode={activeLeague} />)
+                  ? <div className="p-12 text-center text-gray-400 text-sm">{initing ? '⏳ Cargando datos…' : 'Sin partidos. Inicializa las ligas.'}</div>
+                  : fixtures.map((m, i) => {
+                      const bkData = vbByMatch[`${m.home_team}|${m.away_team}`]
+                      return <MatchRow key={i} m={m} leagueCode={activeLeague} bkData={bkData} />
+                    })
                 }
                 {allEvents.length > 0 && (
                   <>
-                    <div className="px-4 py-2 bg-emerald-950/10 border-t border-emerald-800/20 text-[10px] text-emerald-600 uppercase tracking-widest font-bold">⚡ Value bets — {valueBets.length}/{allEvents.length}</div>
-                    {allEvents.map((m, i) => <MatchRow key={i} m={m} leagueCode={activeLeague} />)}
+                    <div className="px-4 py-2 bg-emerald-950/20 border-t border-emerald-800/30 text-[10px] text-emerald-300 uppercase tracking-widest font-black">
+                      ⚡ Value bets detectados — {valueBets.length}/{allEvents.length} con ventaja
+                    </div>
+                    {allEvents.map((m, i) => <MatchRow key={i} m={m} leagueCode={activeLeague} bkData={m} />)}
                   </>
                 )}
               </div>
@@ -901,12 +1190,18 @@ export default function Dashboard() {
             {/* Clasificación */}
             {tab === 'standings' && (
               standings.length === 0
-                ? <div className="p-12 text-center text-gray-600">Sin clasificación. Inicializa las ligas.</div>
+                ? <div className="p-12 text-center text-gray-400 text-sm">Sin clasificación. Inicializa las ligas.</div>
                 : <StandingsTab standings={standings} leagueName={activeLg?.name} />
             )}
 
             {/* Comparar */}
             {tab === 'compare' && <CompareTab standings={standings} />}
+
+            {/* Picks IA */}
+            {tab === 'picks' && <PicksPanel picks={picks} loading={loadingPicks} />}
+
+            {/* Fichajes */}
+            {tab === 'fichajes' && <FichajesPanel news={news} loading={loadingNews} />}
 
             {/* YouTube */}
             {tab === 'youtube' && <YouTubePanel videos={videos} loading={loadingYT} />}
@@ -918,33 +1213,33 @@ export default function Dashboard() {
         </div>
 
         {/* RIGHT panel */}
-        <div className="w-64 bg-[#060b15] border-l border-gray-800/50 flex flex-col shrink-0 overflow-y-auto">
+        <div className="w-64 bg-[#040710] border-l border-gray-800/60 flex flex-col shrink-0 overflow-y-auto">
           {/* World Cup Widget */}
           <WorldCupWidget now={now} />
 
           {/* Value bets */}
-          <div className="px-3 py-2.5 border-b border-gray-800/40 flex items-center justify-between shrink-0">
-            <span className="text-[10px] text-emerald-400 uppercase tracking-widest font-bold">⚡ Value Bets</span>
-            <span className="text-[10px] text-gray-700">{valueBets.length}</span>
+          <div className="px-3 py-2 border-b border-emerald-900/30 flex items-center justify-between shrink-0 bg-emerald-950/20">
+            <span className="text-[10px] text-emerald-300 uppercase tracking-widest font-black">⚡ Value Bets</span>
+            <span className={`text-xs font-black px-2 py-0.5 rounded ${valueBets.length > 0 ? 'bg-emerald-600 text-white' : 'text-gray-600'}`}>{valueBets.length}</span>
           </div>
-          <div className="overflow-y-auto max-h-40">
-            {!hasOdds && <div className="p-4 text-[11px] text-gray-700 text-center">Sin Odds API key</div>}
-            {hasOdds && !trained && <div className="p-4 text-[11px] text-gray-700 text-center">Inicializa las ligas</div>}
-            {loadingBets && <div className="p-4 text-[11px] text-gray-700 animate-pulse text-center">Analizando…</div>}
+          <div className="overflow-y-auto max-h-48">
+            {!hasOdds && <div className="p-4 text-[11px] text-gray-500 text-center">Sin Odds API key configurada</div>}
+            {hasOdds && !trained && <div className="p-4 text-[11px] text-gray-500 text-center">Inicializa las ligas primero</div>}
+            {loadingBets && <div className="p-4 text-[11px] text-gray-500 animate-pulse text-center">Analizando cuotas…</div>}
             {valueBets.map((e, i) => <VBCard key={i} event={e} leagueCode={activeLeague} />)}
             {valueBets.length === 0 && !loadingBets && trained && hasOdds && (
-              <div className="p-4 text-[11px] text-gray-700 text-center">Sin value bets activos</div>
+              <div className="p-4 text-[11px] text-gray-500 text-center">Sin value bets activos ahora</div>
             )}
           </div>
 
           {/* Arbitrage */}
-          <div className="px-3 py-2.5 border-t border-b border-amber-800/20 flex items-center justify-between bg-amber-950/10 shrink-0">
-            <span className="text-[10px] text-amber-400 uppercase tracking-widest font-bold">🔀 Arbitraje</span>
-            <span className="text-[10px] text-gray-700">{arbs.length}</span>
+          <div className="px-3 py-2 border-t border-b border-amber-900/30 flex items-center justify-between bg-amber-950/20 shrink-0">
+            <span className="text-[10px] text-amber-300 uppercase tracking-widest font-black">🔀 Arbitraje</span>
+            <span className={`text-xs font-black px-2 py-0.5 rounded ${arbs.length > 0 ? 'bg-amber-600 text-white' : 'text-gray-600'}`}>{arbs.length}</span>
           </div>
           <div className="flex-1 overflow-y-auto">
             {arbs.length === 0
-              ? <div className="p-4 text-[11px] text-gray-700 text-center">Sin oportunidades</div>
+              ? <div className="p-4 text-[11px] text-gray-500 text-center">Sin oportunidades ahora</div>
               : arbs.map((a, i) => <ArbCard key={i} arb={a} />)
             }
           </div>
