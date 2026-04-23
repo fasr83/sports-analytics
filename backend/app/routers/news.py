@@ -57,17 +57,25 @@ async def get_news(limit: int = 50):
         return {"news": _cache["data"][:limit], "cached": True}
 
     all_items: list[dict] = []
-    async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+    browser_headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/rss+xml, application/xml, text/xml, */*",
+        "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate",
+        "Cache-Control": "no-cache",
+    }
+    async with httpx.AsyncClient(timeout=12, follow_redirects=True) as client:
         for feed in RSS_FEEDS:
             try:
-                r = await client.get(
-                    feed["url"],
-                    headers={"User-Agent": "MetricCapital/1.0 RSS Reader"},
-                )
-                if r.status_code == 200:
+                r = await client.get(feed["url"], headers=browser_headers)
+                if r.status_code == 200 and b"<" in r.content[:50]:
                     all_items.extend(_parse_feed(r.content, feed["name"]))
             except Exception:
                 pass
 
-    _cache = {"data": all_items, "ts": time.time()}
+    if all_items:
+        _cache = {"data": all_items, "ts": time.time()}
+    elif _cache["data"]:
+        # Serve stale cache rather than empty
+        return {"news": _cache["data"][:limit], "cached": True, "stale": True}
     return {"news": all_items[:limit], "cached": False}

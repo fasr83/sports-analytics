@@ -33,6 +33,37 @@ async def fetch_fixtures(league_id: int, season: int = 2025, status: str = None)
         return r.json()
 
 
+async def fetch_team_info(team_id: int) -> dict:
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.get(f"{BASE_URL}/teams", headers=_headers(), params={"id": team_id})
+        r.raise_for_status()
+        return r.json()
+
+
+async def fetch_team_squad(team_id: int) -> dict:
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.get(f"{BASE_URL}/players/squads", headers=_headers(), params={"team": team_id})
+        r.raise_for_status()
+        return r.json()
+
+
+async def fetch_team_recent(team_id: int, season: int = 2025) -> dict:
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.get(
+            f"{BASE_URL}/fixtures", headers=_headers(),
+            params={"team": team_id, "season": season, "last": 10},
+        )
+        r.raise_for_status()
+        return r.json()
+
+
+async def fetch_team_transfers(team_id: int) -> dict:
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.get(f"{BASE_URL}/transfers", headers=_headers(), params={"team": team_id})
+        r.raise_for_status()
+        return r.json()
+
+
 async def check_status() -> dict:
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.get(f"{BASE_URL}/status", headers=_headers())

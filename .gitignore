@@ -17,3 +17,6 @@ frontend/.env.production
 # General
 .DS_Store
 *.pyc
+
+# Local Netlify folder
+.netlify

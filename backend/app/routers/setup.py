@@ -31,6 +31,7 @@ def _parse_standings(data: dict) -> list[dict]:
                 a = row.get("away", {})
                 standings.append({
                     "position": row["rank"],
+                    "team_id": row["team"]["id"],
                     "team": row["team"]["name"],
                     "crest": row["team"].get("logo", ""),
                     "played": row["all"]["played"],

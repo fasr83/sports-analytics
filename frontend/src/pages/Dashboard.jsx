@@ -7,6 +7,7 @@ import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from 'recharts'
 import { LEAGUES, LEAGUE_GROUPS } from '../utils/odds'
+import TeamProfile from '../components/TeamProfile'
 import { useNews } from '../hooks/useNews'
 import { useYouTube } from '../hooks/useYouTube'
 import { format, parseISO } from 'date-fns'
@@ -120,9 +121,21 @@ const BOOKMAKERS = {
   },
 }
 
+/* ─── Currencies by country ─── */
+const CURRENCIES = {
+  CO:   { symbol: '$',  code: 'COP' },
+  ES:   { symbol: '€',  code: 'EUR' },
+  MX:   { symbol: '$',  code: 'MXN' },
+  AR:   { symbol: '$',  code: 'ARS' },
+  US:   { symbol: '$',  code: 'USD' },
+  UK:   { symbol: '£',  code: 'GBP' },
+  INTL: { symbol: '$',  code: 'USD' },
+}
+
 /* ─── Bet Slip Panel ─── */
 function BetSlipPanel({ slip, onRemove, onClear, onStakeChange, stake }) {
   const [country, setCountry] = useState('CO')
+  const currency = CURRENCIES[country] ?? { symbol: '$', code: 'USD' }
   const [open, setOpen] = useState(true)
 
   const combinedOdds = slip.reduce((acc, b) => acc * (b.odds || 1), 1)
@@ -206,7 +219,7 @@ function BetSlipPanel({ slip, onRemove, onClear, onStakeChange, stake }) {
                     {[5, 10, 20, 50].map(v => (
                       <button key={v} onClick={() => onStakeChange(v)}
                         className={`flex-1 text-[10px] font-bold py-1 rounded transition-colors ${stake === v ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
-                        ${v}
+                        {currency.symbol}{v}
                       </button>
                     ))}
                   </div>
@@ -220,11 +233,11 @@ function BetSlipPanel({ slip, onRemove, onClear, onStakeChange, stake }) {
                     placeholder="Monto..."
                     min="1"
                   />
-                  <span className="text-[10px] text-gray-500">USD</span>
+                  <span className="text-[10px] text-gray-500">{currency.code}</span>
                 </div>
                 <div className="flex justify-between items-center bg-emerald-950/40 rounded-xl px-3 py-2 border border-emerald-800/30">
                   <span className="text-xs text-gray-300 font-medium">Ganancia potencial</span>
-                  <span className="text-emerald-300 font-black text-lg font-mono">${potentialReturn.toFixed(2)}</span>
+                  <span className="text-emerald-300 font-black text-lg font-mono">{currency.symbol}{potentialReturn.toFixed(2)}</span>
                 </div>
               </div>
 
@@ -548,7 +561,7 @@ function MatchRow({ m, leagueCode, bkData, slip, onAddBet }) {
 }
 
 /* ─── Standings with bar chart ─── */
-function StandingsTab({ standings, leagueName }) {
+function StandingsTab({ standings, leagueName, onTeamClick }) {
   const top10 = standings.slice(0, 10)
   const maxPts = top10[0]?.points || 1
 
@@ -586,7 +599,13 @@ function StandingsTab({ standings, leagueName }) {
           }`}>
             <span className="text-gray-600 text-xs w-4 shrink-0">{row.position}</span>
             {row.crest && <img src={row.crest} alt="" className="w-5 h-5 object-contain shrink-0" />}
-            <span className="text-sm text-gray-200 flex-1 truncate">{row.team}</span>
+            {row.team_id
+              ? <button onClick={() => onTeamClick?.(row.team_id, row.team, row.crest)}
+                  className="text-sm text-gray-200 flex-1 truncate text-left hover:text-emerald-300 transition-colors cursor-pointer">
+                  {row.team}
+                </button>
+              : <span className="text-sm text-gray-200 flex-1 truncate">{row.team}</span>
+            }
             <div className="flex-1 mx-2 max-w-24">
               <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
                 <div className="h-1 bg-emerald-500 rounded-full" style={{ width: `${(row.points / maxPts) * 100}%` }} />
@@ -1258,6 +1277,7 @@ export default function Dashboard() {
   const [tab, setTab] = useState('matches')
   const [betSlip, setBetSlip] = useState([])
   const [stake, setStake] = useState(10)
+  const [teamProfile, setTeamProfile] = useState(null)
   const qc = useQueryClient()
   const now = useClock()
   const wc  = useWCCountdown(now)
@@ -1499,7 +1519,7 @@ export default function Dashboard() {
             {tab === 'standings' && (
               standings.length === 0
                 ? <div className="p-12 text-center text-gray-400 text-sm">Sin clasificación. Inicializa las ligas.</div>
-                : <StandingsTab standings={standings} leagueName={activeLg?.name} />
+                : <StandingsTab standings={standings} leagueName={activeLg?.name} onTeamClick={(id, name, crest) => setTeamProfile({ id, name, crest })} />
             )}
 
             {/* Comparar */}
@@ -1556,6 +1576,16 @@ export default function Dashboard() {
 
       {/* ── Ticker ── */}
       <Ticker news={news} />
+
+      {/* ── Team Profile modal ── */}
+      {teamProfile && (
+        <TeamProfile
+          teamId={teamProfile.id}
+          teamName={teamProfile.name}
+          teamCrest={teamProfile.crest}
+          onClose={() => setTeamProfile(null)}
+        />
+      )}
 
       {/* ── Floating Bet Slip ── */}
       <BetSlipPanel
