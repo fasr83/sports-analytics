@@ -1,15 +1,17 @@
 import asyncio
 import logging
 import time
-from fastapi import APIRouter, HTTPException
-from ..api import api_football
+from fastapi import APIRouter, HTTPException, Query
+from ..api import api_football, transfermarkt
 from ..config import settings
 
 router = APIRouter(prefix="/teams", tags=["teams"])
 logger = logging.getLogger("sports_analytics")
 
 _cache: dict = {}
+_player_cache: dict = {}
 CACHE_TTL = 3600
+PLAYER_CACHE_TTL = 7200
 
 
 def _agg_stats(statistics: list) -> dict:
@@ -218,4 +220,98 @@ async def get_team(team_id: int, season: int = 2025):
         "transfers": transfers[:30],
     }
     _cache[team_id] = {"data": data, "ts": time.time()}
+    return data
+
+
+@router.get("/player/{player_id}")
+async def get_player_career(
+    player_id: int,
+    name: str = Query(default=""),
+    nationality: str = Query(default=""),
+):
+    """Lazy endpoint: called when a player card is expanded.
+    Returns career history (API-Football transfers) + Transfermarkt data
+    (market value, contract expiry, full career clubs).
+    """
+    cached = _player_cache.get(player_id)
+    if cached and (time.time() - cached["ts"]) < PLAYER_CACHE_TTL:
+        return cached["data"]
+
+    # ── API-Football: player transfer history ─────────────────────────────────
+    aff_career: list = []
+    try:
+        if settings.API_FOOTBALL_KEY:
+            xfer = await api_football.fetch_player_transfers(player_id)
+            entries = xfer.get("response", [])
+            raw_transfers = entries[0].get("transfers", []) if entries else []
+            # Sort chronologically
+            raw_transfers.sort(key=lambda t: t.get("date") or "")
+            for tx in raw_transfers:
+                t_in  = tx.get("teams", {}).get("in",  {})
+                t_out = tx.get("teams", {}).get("out", {})
+                aff_career.append({
+                    "date":       tx.get("date"),
+                    "type":       tx.get("type"),
+                    "club_to":    t_in.get("name"),
+                    "logo_to":    t_in.get("logo"),
+                    "club_from":  t_out.get("name"),
+                    "logo_from":  t_out.get("logo"),
+                })
+    except Exception as e:
+        logger.debug(f"[teams] player transfers for {player_id}: {e}")
+
+    # ── Transfermarkt: market value, contract, full career ────────────────────
+    tm_value:    str | None = None
+    tm_contract: str | None = None
+    tm_career:   list = []
+    tm_id:       str | None = None
+
+    try:
+        if name:
+            results = await transfermarkt.search_player(name)
+            match   = transfermarkt._best_match(results, name, nationality)
+            if match:
+                tm_id = match.get("id")
+
+        if tm_id:
+            profile, transfers_tm = await asyncio.gather(
+                transfermarkt.get_player_profile(tm_id),
+                transfermarkt.get_player_transfers(tm_id),
+                return_exceptions=True,
+            )
+
+            if isinstance(profile, dict):
+                tm_value    = profile.get("marketValue")
+                contract    = profile.get("contract") or {}
+                tm_contract = contract.get("expires") or contract.get("date")
+
+            if isinstance(transfers_tm, dict):
+                for tx in (transfers_tm.get("transfers") or []):
+                    frm  = tx.get("from") or {}
+                    to   = tx.get("to")   or {}
+                    season_s = tx.get("season") or ""
+                    tm_career.append({
+                        "season":    season_s,
+                        "club_from": (frm.get("club") or {}).get("name"),
+                        "logo_from": (frm.get("club") or {}).get("image"),
+                        "club_to":   (to.get("club")  or {}).get("name"),
+                        "logo_to":   (to.get("club")  or {}).get("image"),
+                        "fee":       tx.get("fee"),
+                        "date_from": (frm.get("date") or ""),
+                        "date_to":   (to.get("date")  or ""),
+                    })
+    except Exception as e:
+        logger.debug(f"[teams] Transfermarkt for {name}: {e}")
+
+    # Prefer TM career (richer), fall back to API-Football
+    career = tm_career if tm_career else aff_career
+
+    data = {
+        "player_id":    player_id,
+        "tm_id":        tm_id,
+        "market_value": tm_value,
+        "contract_end": tm_contract,
+        "career":       career,
+    }
+    _player_cache[player_id] = {"data": data, "ts": time.time()}
     return data

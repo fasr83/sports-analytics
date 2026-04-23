@@ -75,6 +75,13 @@ async def fetch_team_transfers(team_id: int) -> dict:
         return r.json()
 
 
+async def fetch_player_transfers(player_id: int) -> dict:
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.get(f"{BASE_URL}/transfers", headers=_headers(), params={"player": player_id})
+        r.raise_for_status()
+        return r.json()
+
+
 async def check_status() -> dict:
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.get(f"{BASE_URL}/status", headers=_headers())
