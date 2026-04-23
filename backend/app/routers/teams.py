@@ -14,31 +14,53 @@ CACHE_TTL = 3600
 
 def _agg_stats(statistics: list) -> dict:
     """Aggregate player stats across multiple competitions in a season."""
-    apps     = sum(s.get("games",  {}).get("appearences") or 0 for s in statistics)
-    mins     = sum(s.get("games",  {}).get("minutes")     or 0 for s in statistics)
-    goals    = sum(s.get("goals",  {}).get("total")       or 0 for s in statistics)
-    assists  = sum(s.get("goals",  {}).get("assists")     or 0 for s in statistics)
-    yellow   = sum(s.get("cards",  {}).get("yellow")      or 0 for s in statistics)
-    red      = sum(s.get("cards",  {}).get("red")         or 0 for s in statistics)
-    shots    = sum(s.get("shots",  {}).get("total")       or 0 for s in statistics)
-    key_pass = sum(s.get("passes", {}).get("key")         or 0 for s in statistics)
-    tackles  = sum(s.get("tackles",{}).get("total")       or 0 for s in statistics)
-    # Rating: average of available ratings (they come as strings)
+    apps      = sum(s.get("games",   {}).get("appearences") or 0 for s in statistics)
+    mins      = sum(s.get("games",   {}).get("minutes")     or 0 for s in statistics)
+    goals     = sum(s.get("goals",   {}).get("total")       or 0 for s in statistics)
+    assists   = sum(s.get("goals",   {}).get("assists")      or 0 for s in statistics)
+    yellow    = sum(s.get("cards",   {}).get("yellow")       or 0 for s in statistics)
+    red       = sum(s.get("cards",   {}).get("red")          or 0 for s in statistics)
+    shots     = sum(s.get("shots",   {}).get("total")        or 0 for s in statistics)
+    key_pass  = sum(s.get("passes",  {}).get("key")          or 0 for s in statistics)
+    tackles   = sum(s.get("tackles", {}).get("total")        or 0 for s in statistics)
+
     ratings = []
     for s in statistics:
         r = s.get("games", {}).get("rating")
         if r:
             try:
                 ratings.append(float(r))
-            except ValueError:
+            except (ValueError, TypeError):
                 pass
     rating = round(sum(ratings) / len(ratings), 2) if ratings else None
     return {
-        "apps": apps, "minutes": mins, "goals": goals, "assists": assists,
-        "yellow": yellow, "red": red, "shots": shots, "key_passes": key_pass,
-        "tackles": tackles, "rating": rating,
+        "apps": apps or None, "minutes": mins or None,
+        "goals": goals, "assists": assists,
+        "yellow": yellow, "red": red,
+        "shots": shots or None, "key_passes": key_pass or None, "tackles": tackles or None,
+        "rating": rating,
         "rating_pct": round(rating / 10 * 100) if rating else None,
     }
+
+
+async def _fetch_player_stats_merged(team_id: int, season: int) -> list:
+    """Fetch /players pages 1+2, merge. If empty, retry with season-1."""
+    async def _pages(s):
+        p1, p2 = await asyncio.gather(
+            api_football.fetch_player_stats(team_id, s, page=1),
+            api_football.fetch_player_stats(team_id, s, page=2),
+            return_exceptions=True,
+        )
+        entries = []
+        for res in [p1, p2]:
+            if isinstance(res, dict):
+                entries.extend(res.get("response", []))
+        return entries
+
+    entries = await _pages(season)
+    if not entries:
+        entries = await _pages(season - 1)
+    return entries
 
 
 @router.get("/{team_id}")
@@ -58,10 +80,10 @@ async def get_team(team_id: int, season: int = 2025):
         }
 
     try:
-        team_res, stats_p1, stats_p2, recent_res, xfer_res = await asyncio.gather(
+        team_res, squad_res, stat_entries, recent_res, xfer_res = await asyncio.gather(
             api_football.fetch_team_info(team_id),
-            api_football.fetch_player_stats(team_id, season, page=1),
-            api_football.fetch_player_stats(team_id, season, page=2),
+            api_football.fetch_team_squad(team_id),
+            _fetch_player_stats_merged(team_id, season),
             api_football.fetch_team_recent(team_id, season),
             api_football.fetch_team_transfers(team_id),
             return_exceptions=True,
@@ -74,42 +96,64 @@ async def get_team(team_id: int, season: int = 2025):
     team_info  = info_entry.get("team", {})
     venue_info = info_entry.get("venue", {})
 
-    # ── Players with full stats (pages 1 + 2) ────────────────────────────────
-    all_entries: list = []
-    for res in [stats_p1, stats_p2]:
-        if isinstance(res, dict):
-            all_entries.extend(res.get("response", []))
+    # ── Basic roster from /players/squads (always reliable) ──────────────────
+    squad_entry   = (squad_res.get("response") or [{}])[0] if isinstance(squad_res, dict) else {}
+    basic_players = {
+        p["id"]: {
+            "id": p.get("id"), "name": p.get("name"), "age": p.get("age"),
+            "number": p.get("number"), "position": p.get("position"), "photo": p.get("photo"),
+        }
+        for p in squad_entry.get("players", []) if p.get("id")
+    }
 
-    squad = []
-    seen_ids: set = set()
-    for entry in all_entries:
-        p    = entry.get("player", {})
-        pid  = p.get("id")
-        if pid in seen_ids:
+    # ── Full stats from /players endpoint ─────────────────────────────────────
+    stat_entries_list = stat_entries if isinstance(stat_entries, list) else []
+    stats_map: dict = {}
+    seen: set = set()
+    for entry in stat_entries_list:
+        p   = entry.get("player", {})
+        pid = p.get("id")
+        if not pid or pid in seen:
             continue
-        seen_ids.add(pid)
-        stats = entry.get("statistics", [])
-        agg   = _agg_stats(stats)
-        # Position and shirt number from first stat entry
-        first = stats[0] if stats else {}
-        squad.append({
+        seen.add(pid)
+        statistics = entry.get("statistics", [])
+        agg  = _agg_stats(statistics)
+        first = statistics[0] if statistics else {}
+        stats_map[pid] = {
             "id":          pid,
-            "name":        p.get("name"),
+            "name":        p.get("name") or basic_players.get(pid, {}).get("name"),
             "firstname":   p.get("firstname"),
             "lastname":    p.get("lastname"),
-            "age":         p.get("age"),
+            "age":         p.get("age") or basic_players.get(pid, {}).get("age"),
             "nationality": p.get("nationality"),
             "height":      p.get("height"),
             "weight":      p.get("weight"),
-            "photo":       p.get("photo"),
-            "number":      first.get("games", {}).get("number"),
-            "position":    first.get("games", {}).get("position"),
+            "photo":       p.get("photo") or basic_players.get(pid, {}).get("photo"),
+            "number":      first.get("games", {}).get("number") or basic_players.get(pid, {}).get("number"),
+            "position":    first.get("games", {}).get("position") or basic_players.get(pid, {}).get("position"),
             **agg,
-        })
+        }
 
-    # Sort by position order, then by appearances desc
+    # ── Merge: stats_map has priority; fall back to basic_players ─────────────
+    all_ids = set(stats_map) | set(basic_players)
+    squad = []
+    for pid in all_ids:
+        if pid in stats_map:
+            squad.append(stats_map[pid])
+        else:
+            b = basic_players[pid]
+            squad.append({
+                **b,
+                "firstname": None, "lastname": None,
+                "nationality": None, "height": None, "weight": None,
+                "apps": None, "minutes": None, "goals": None, "assists": None,
+                "yellow": None, "red": None, "shots": None,
+                "key_passes": None, "tackles": None,
+                "rating": None, "rating_pct": None,
+            })
+
     POS_ORDER = {"Goalkeeper": 0, "Defender": 1, "Midfielder": 2, "Attacker": 3}
-    squad.sort(key=lambda x: (POS_ORDER.get(x.get("position", ""), 9), -(x.get("apps") or 0)))
+    squad.sort(key=lambda x: (POS_ORDER.get(x.get("position") or "", 9), -(x.get("apps") or 0)))
 
     # ── Recent fixtures ───────────────────────────────────────────────────────
     recent_raw = recent_res.get("response", []) if isinstance(recent_res, dict) else []
