@@ -12,6 +12,35 @@ _cache: dict = {}
 CACHE_TTL = 3600
 
 
+def _agg_stats(statistics: list) -> dict:
+    """Aggregate player stats across multiple competitions in a season."""
+    apps     = sum(s.get("games",  {}).get("appearences") or 0 for s in statistics)
+    mins     = sum(s.get("games",  {}).get("minutes")     or 0 for s in statistics)
+    goals    = sum(s.get("goals",  {}).get("total")       or 0 for s in statistics)
+    assists  = sum(s.get("goals",  {}).get("assists")     or 0 for s in statistics)
+    yellow   = sum(s.get("cards",  {}).get("yellow")      or 0 for s in statistics)
+    red      = sum(s.get("cards",  {}).get("red")         or 0 for s in statistics)
+    shots    = sum(s.get("shots",  {}).get("total")       or 0 for s in statistics)
+    key_pass = sum(s.get("passes", {}).get("key")         or 0 for s in statistics)
+    tackles  = sum(s.get("tackles",{}).get("total")       or 0 for s in statistics)
+    # Rating: average of available ratings (they come as strings)
+    ratings = []
+    for s in statistics:
+        r = s.get("games", {}).get("rating")
+        if r:
+            try:
+                ratings.append(float(r))
+            except ValueError:
+                pass
+    rating = round(sum(ratings) / len(ratings), 2) if ratings else None
+    return {
+        "apps": apps, "minutes": mins, "goals": goals, "assists": assists,
+        "yellow": yellow, "red": red, "shots": shots, "key_passes": key_pass,
+        "tackles": tackles, "rating": rating,
+        "rating_pct": round(rating / 10 * 100) if rating else None,
+    }
+
+
 @router.get("/{team_id}")
 async def get_team(team_id: int, season: int = 2025):
     cached = _cache.get(team_id)
@@ -21,17 +50,18 @@ async def get_team(team_id: int, season: int = 2025):
     if not settings.API_FOOTBALL_KEY:
         return {
             "demo": True,
-            "info": {"id": team_id, "name": "Demo", "country": "—", "founded": None, "logo": ""},
-            "venue": {"name": "—", "capacity": None, "city": "—"},
-            "squad": [],
-            "recent": [],
+            "info":      {"id": team_id, "name": "Demo", "country": "—", "founded": None, "logo": ""},
+            "venue":     {"name": "—", "capacity": None, "city": "—"},
+            "squad":     [],
+            "recent":    [],
             "transfers": [],
         }
 
     try:
-        team_res, squad_res, recent_res, xfer_res = await asyncio.gather(
+        team_res, stats_p1, stats_p2, recent_res, xfer_res = await asyncio.gather(
             api_football.fetch_team_info(team_id),
-            api_football.fetch_team_squad(team_id),
+            api_football.fetch_player_stats(team_id, season, page=1),
+            api_football.fetch_player_stats(team_id, season, page=2),
             api_football.fetch_team_recent(team_id, season),
             api_football.fetch_team_transfers(team_id),
             return_exceptions=True,
@@ -39,26 +69,49 @@ async def get_team(team_id: int, season: int = 2025):
     except Exception as e:
         raise HTTPException(500, str(e))
 
-    # Team + venue
+    # ── Team + venue ──────────────────────────────────────────────────────────
     info_entry = (team_res.get("response") or [{}])[0] if isinstance(team_res, dict) else {}
     team_info  = info_entry.get("team", {})
     venue_info = info_entry.get("venue", {})
 
-    # Squad (players/squads endpoint)
-    squad_entry = (squad_res.get("response") or [{}])[0] if isinstance(squad_res, dict) else {}
-    squad = [
-        {
-            "id":       p.get("id"),
-            "name":     p.get("name"),
-            "age":      p.get("age"),
-            "number":   p.get("number"),
-            "position": p.get("position"),
-            "photo":    p.get("photo"),
-        }
-        for p in squad_entry.get("players", [])
-    ]
+    # ── Players with full stats (pages 1 + 2) ────────────────────────────────
+    all_entries: list = []
+    for res in [stats_p1, stats_p2]:
+        if isinstance(res, dict):
+            all_entries.extend(res.get("response", []))
 
-    # Recent fixtures
+    squad = []
+    seen_ids: set = set()
+    for entry in all_entries:
+        p    = entry.get("player", {})
+        pid  = p.get("id")
+        if pid in seen_ids:
+            continue
+        seen_ids.add(pid)
+        stats = entry.get("statistics", [])
+        agg   = _agg_stats(stats)
+        # Position and shirt number from first stat entry
+        first = stats[0] if stats else {}
+        squad.append({
+            "id":          pid,
+            "name":        p.get("name"),
+            "firstname":   p.get("firstname"),
+            "lastname":    p.get("lastname"),
+            "age":         p.get("age"),
+            "nationality": p.get("nationality"),
+            "height":      p.get("height"),
+            "weight":      p.get("weight"),
+            "photo":       p.get("photo"),
+            "number":      first.get("games", {}).get("number"),
+            "position":    first.get("games", {}).get("position"),
+            **agg,
+        })
+
+    # Sort by position order, then by appearances desc
+    POS_ORDER = {"Goalkeeper": 0, "Defender": 1, "Midfielder": 2, "Attacker": 3}
+    squad.sort(key=lambda x: (POS_ORDER.get(x.get("position", ""), 9), -(x.get("apps") or 0)))
+
+    # ── Recent fixtures ───────────────────────────────────────────────────────
     recent_raw = recent_res.get("response", []) if isinstance(recent_res, dict) else []
     recent = []
     for f in recent_raw:
@@ -79,14 +132,13 @@ async def get_team(team_id: int, season: int = 2025):
             "opponent":      opponent.get("name"),
             "opponent_logo": opponent.get("logo"),
             "score":         f"{home_goals}–{away_goals}",
-            "gf":            gf,
-            "ga":            ga,
+            "gf": gf, "ga": ga,
             "result":        result,
             "competition":   f.get("league", {}).get("name"),
             "venue":         fix.get("venue", {}).get("name"),
         })
 
-    # Transfers
+    # ── Transfers ─────────────────────────────────────────────────────────────
     transfers_raw = xfer_res.get("response", []) if isinstance(xfer_res, dict) else []
     transfers = []
     for t in transfers_raw:

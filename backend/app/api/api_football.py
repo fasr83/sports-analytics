@@ -47,6 +47,17 @@ async def fetch_team_squad(team_id: int) -> dict:
         return r.json()
 
 
+async def fetch_player_stats(team_id: int, season: int = 2025, page: int = 1) -> dict:
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.get(
+            f"{BASE_URL}/players",
+            headers=_headers(),
+            params={"team": team_id, "season": season, "page": page},
+        )
+        r.raise_for_status()
+        return r.json()
+
+
 async def fetch_team_recent(team_id: int, season: int = 2025) -> dict:
     async with httpx.AsyncClient(timeout=20) as client:
         r = await client.get(

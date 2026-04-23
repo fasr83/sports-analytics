@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 
@@ -6,33 +7,192 @@ const BASE = import.meta.env.VITE_API_URL
   : '/api'
 const api = axios.create({ baseURL: BASE })
 
-const RESULT_CLS = {
-  W: 'bg-emerald-600 text-white',
-  D: 'bg-gray-600 text-white',
-  L: 'bg-red-600 text-white',
+/* ── constants ─────────────────────────────────────────────────────────── */
+const RESULT_CLS = { W: 'bg-emerald-600', D: 'bg-gray-600', L: 'bg-red-600' }
+
+const POS_ORDER  = ['Goalkeeper', 'Defender', 'Midfielder', 'Attacker']
+const POS_LABEL  = { Goalkeeper: 'Porteros', Defender: 'Defensas', Midfielder: 'Centrocampistas', Attacker: 'Delanteros' }
+const POS_COLOR  = { Goalkeeper: 'text-yellow-400 border-yellow-800/40 bg-yellow-950/20', Defender: 'text-blue-400 border-blue-800/40 bg-blue-950/20', Midfielder: 'text-emerald-400 border-emerald-800/40 bg-emerald-950/20', Attacker: 'text-red-400 border-red-800/40 bg-red-950/20' }
+const POS_BADGE  = { Goalkeeper: 'bg-yellow-900/60 text-yellow-300', Defender: 'bg-blue-900/60 text-blue-300', Midfielder: 'bg-emerald-900/60 text-emerald-300', Attacker: 'bg-red-900/60 text-red-300' }
+
+const NAT_FLAG = {
+  'Argentina':'🇦🇷','Brazil':'🇧🇷','France':'🇫🇷','Spain':'🇪🇸','Germany':'🇩🇪',
+  'Italy':'🇮🇹','England':'🏴󠁧󠁢󠁥󠁮󠁧󠁿','Portugal':'🇵🇹','Netherlands':'🇳🇱','Belgium':'🇧🇪',
+  'Croatia':'🇭🇷','Uruguay':'🇺🇾','Colombia':'🇨🇴','Mexico':'🇲🇽','USA':'🇺🇸',
+  'Senegal':'🇸🇳','Morocco':'🇲🇦','Nigeria':'🇳🇬','Ghana':'🇬🇭','Egypt':'🇪🇬',
+  'Ivory Coast':'🇨🇮','Japan':'🇯🇵','South Korea':'🇰🇷','Australia':'🇦🇺',
+  'Switzerland':'🇨🇭','Denmark':'🇩🇰','Sweden':'🇸🇪','Norway':'🇳🇴','Austria':'🇦🇹',
+  'Poland':'🇵🇱','Serbia':'🇷🇸','Turkey':'🇹🇷','Greece':'🇬🇷','Ukraine':'🇺🇦',
+  'Romania':'🇷🇴','Czech Republic':'🇨🇿','Slovakia':'🇸🇰','Scotland':'🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+  'Wales':'🏴󠁧󠁢󠁷󠁬󠁳󠁿','Ireland':'🇮🇪','Chile':'🇨🇱','Ecuador':'🇪🇨','Peru':'🇵🇪',
+  'Venezuela':'🇻🇪','Paraguay':'🇵🇾','Bolivia':'🇧🇴','Saudi Arabia':'🇸🇦',
+  'Tunisia':'🇹🇳','Algeria':'🇩🇿','Cameroon':'🇨🇲','Costa Rica':'🇨🇷','Canada':'🇨🇦',
+  'Iceland':'🇮🇸','Finland':'🇫🇮','Israel':'🇮🇱','Albania':'🇦🇱','Bosnia':'🇧🇦',
+  'Slovenia':'🇸🇮','Bulgaria':'🇧🇬','Hungary':'🇭🇺','Russia':'🇷🇺',
+  'Congo DR':'🇨🇩','Mali':'🇲🇱','Gabon':'🇬🇦','Guinea':'🇬🇳','Zambia':'🇿🇲',
 }
 
-const POS_COLOR = {
-  Goalkeeper: 'text-yellow-400',
-  Defender:   'text-blue-400',
-  Midfielder: 'text-emerald-400',
-  Attacker:   'text-red-400',
+/* ── Rating bar ─────────────────────────────────────────────────────────── */
+function RatingBar({ rating, pct }) {
+  if (!rating) return <span className="text-[10px] text-gray-700">—</span>
+  const color = pct >= 75 ? 'bg-emerald-500' : pct >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className={`text-[10px] font-black font-mono w-7 text-right ${pct >= 75 ? 'text-emerald-400' : pct >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
+        {pct}
+      </span>
+    </div>
+  )
 }
 
-const POS_LABEL = {
-  Goalkeeper: 'Porteros',
-  Defender:   'Defensas',
-  Midfielder: 'Centrocampistas',
-  Attacker:   'Delanteros',
+/* ── Stat pill ───────────────────────────────────────────────────────────── */
+function Stat({ label, value, color = 'text-gray-300' }) {
+  return (
+    <div className="flex flex-col items-center min-w-[36px]">
+      <span className={`text-xs font-black ${color}`}>{value ?? '—'}</span>
+      <span className="text-[8px] text-gray-700 uppercase tracking-widest">{label}</span>
+    </div>
+  )
 }
 
-const TRANSFER_CLS = {
-  Free:   'bg-blue-900/60 text-blue-300',
-  Loan:   'bg-amber-900/60 text-amber-300',
-  N: 'bg-gray-800 text-gray-400',
+/* ── Player card ─────────────────────────────────────────────────────────── */
+function PlayerCard({ p, expanded, onToggle }) {
+  const flag = NAT_FLAG[p.nationality] ?? '🌍'
+  const posCls = POS_BADGE[p.position] ?? 'bg-gray-800 text-gray-400'
+
+  return (
+    <div className="border-b border-gray-800/30 hover:bg-white/[0.02] transition-colors">
+      {/* Collapsed row */}
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left"
+      >
+        {/* Photo */}
+        {p.photo ? (
+          <img src={p.photo} alt="" className="w-8 h-8 rounded-full object-cover shrink-0 bg-gray-800" loading="lazy" />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-gray-800 shrink-0 flex items-center justify-center text-gray-600 text-xs font-bold">
+            {p.number ?? '?'}
+          </div>
+        )}
+
+        {/* Number */}
+        <span className="text-[10px] text-gray-600 font-mono w-4 shrink-0 text-center">{p.number ?? '—'}</span>
+
+        {/* Name + nationality */}
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-gray-200 font-semibold truncate">{p.name}</p>
+          <div className="flex items-center gap-1">
+            <span className="text-xs">{flag}</span>
+            <span className="text-[9px] text-gray-600 truncate">{p.nationality ?? '—'}</span>
+            {p.age && <span className="text-[9px] text-gray-700">· {p.age}a</span>}
+          </div>
+        </div>
+
+        {/* Quick stats */}
+        <div className="flex items-center gap-3 shrink-0">
+          <Stat label="PJ" value={p.apps} />
+          <Stat label="G" value={p.goals} color={p.goals > 0 ? 'text-emerald-400' : 'text-gray-300'} />
+          <Stat label="A" value={p.assists} color={p.assists > 0 ? 'text-blue-400' : 'text-gray-300'} />
+          <div className="w-20">
+            <RatingBar rating={p.rating} pct={p.rating_pct} />
+          </div>
+        </div>
+
+        {/* Position badge + expand */}
+        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded shrink-0 ml-1 ${posCls}`}>
+          {p.position?.slice(0, 3).toUpperCase() ?? '—'}
+        </span>
+        <span className="text-gray-700 text-[10px] ml-1">{expanded ? '▲' : '▼'}</span>
+      </button>
+
+      {/* Expanded detail */}
+      {expanded && (
+        <div className="mx-4 mb-3 rounded-xl border border-gray-800/40 bg-[#060c1a] overflow-hidden">
+          <div className="grid grid-cols-2 divide-x divide-gray-800/40">
+
+            {/* Left: personal info */}
+            <div className="p-3">
+              <p className="text-[9px] text-gray-600 uppercase tracking-widest font-bold mb-2">Información</p>
+              <div className="space-y-1.5">
+                {[
+                  ['Nombre',       `${p.firstname ?? ''} ${p.lastname ?? ''}`.trim() || p.name],
+                  ['Nacionalidad', `${flag} ${p.nationality ?? '—'}`],
+                  ['Edad',         p.age ? `${p.age} años` : '—'],
+                  ['Altura',       p.height ?? '—'],
+                  ['Peso',         p.weight ?? '—'],
+                  ['Posición',     p.position ?? '—'],
+                  ['Dorsal',       p.number ?? '—'],
+                ].map(([lbl, val]) => (
+                  <div key={lbl} className="flex items-center gap-2">
+                    <span className="text-[9px] text-gray-600 w-20 shrink-0">{lbl}</span>
+                    <span className="text-[10px] text-gray-300 font-medium">{val}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: season stats */}
+            <div className="p-3">
+              <p className="text-[9px] text-gray-600 uppercase tracking-widest font-bold mb-2">Temporada actual</p>
+
+              {/* Rating / nivel */}
+              <div className="mb-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[9px] text-gray-600">Nivel ({p.rating ?? '—'}/10)</span>
+                  {p.rating_pct && (
+                    <span className={`text-[10px] font-black ${p.rating_pct >= 75 ? 'text-emerald-400' : p.rating_pct >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
+                      {p.rating_pct}%
+                    </span>
+                  )}
+                </div>
+                <div className="h-2.5 bg-gray-800 rounded-full overflow-hidden">
+                  {p.rating_pct ? (
+                    <div
+                      className={`h-full rounded-full transition-all ${p.rating_pct >= 75 ? 'bg-gradient-to-r from-emerald-600 to-emerald-400' : p.rating_pct >= 60 ? 'bg-gradient-to-r from-yellow-600 to-yellow-400' : 'bg-gradient-to-r from-red-700 to-red-500'}`}
+                      style={{ width: `${p.rating_pct}%` }}
+                    />
+                  ) : (
+                    <div className="h-full w-[5%] bg-gray-700 rounded-full" />
+                  )}
+                </div>
+              </div>
+
+              {/* Stat grid */}
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  ['Partidos',   p.apps,        'text-white'],
+                  ['Minutos',    p.minutes,     'text-gray-300'],
+                  ['Goles',      p.goals,       'text-emerald-400'],
+                  ['Asistencias',p.assists,     'text-blue-400'],
+                  ['Disparos',   p.shots,       'text-gray-300'],
+                  ['Pases clave',p.key_passes,  'text-violet-400'],
+                  ['Tackles',    p.tackles,     'text-yellow-400'],
+                  ['Amarillas',  p.yellow,      'text-yellow-400'],
+                  ['Rojas',      p.red,         'text-red-400'],
+                ].map(([lbl, val, cls]) => (
+                  <div key={lbl} className="bg-black/30 rounded-lg py-2 px-1 text-center">
+                    <p className={`text-sm font-black ${cls}`}>{val ?? '—'}</p>
+                    <p className="text-[8px] text-gray-700 leading-tight mt-0.5">{lbl}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
+/* ── Main modal ─────────────────────────────────────────────────────────── */
 export default function TeamProfile({ teamId, teamName, teamCrest, onClose }) {
+  const [expandedPlayer, setExpandedPlayer] = useState(null)
+  const [tab, setTab] = useState('squad')
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ['team', teamId],
     queryFn:  () => api.get(`/teams/${teamId}`).then(r => r.data),
@@ -40,196 +200,187 @@ export default function TeamProfile({ teamId, teamName, teamCrest, onClose }) {
     enabled:   !!teamId,
   })
 
+  const togglePlayer = (id) => setExpandedPlayer(prev => prev === id ? null : id)
+
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start justify-center pt-4 pb-4 px-4"
+      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-start justify-center pt-4 pb-4 px-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-4xl bg-[#07101f] border border-gray-700/50 rounded-2xl shadow-2xl shadow-black/80 flex flex-col max-h-[calc(100vh-32px)] overflow-hidden"
+        className="w-full max-w-3xl bg-[#07101f] border border-gray-700/50 rounded-2xl shadow-2xl shadow-black/80 flex flex-col max-h-[calc(100vh-32px)] overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* ── Header ── */}
         <div className="flex items-center gap-4 px-5 py-4 bg-gradient-to-r from-[#04070f] to-[#07101f] border-b border-gray-800/50 shrink-0">
           {(data?.info?.logo || teamCrest) && (
-            <img
-              src={data?.info?.logo || teamCrest}
-              alt=""
-              className="w-14 h-14 object-contain"
-            />
+            <img src={data?.info?.logo || teamCrest} alt="" className="w-14 h-14 object-contain" />
           )}
           <div className="flex-1 min-w-0">
-            <h2 className="text-white font-black text-xl leading-tight">
-              {data?.info?.name || teamName}
-            </h2>
-            <div className="flex flex-wrap items-center gap-3 mt-1">
-              {data?.info?.country && (
-                <span className="text-[11px] text-gray-400">🌍 {data.info.country}</span>
-              )}
-              {data?.info?.founded && (
-                <span className="text-[11px] text-gray-600">Fundado: {data.info.founded}</span>
-              )}
-              {data?.venue?.name && (
-                <span className="text-[11px] text-emerald-400">🏟 {data.venue.name}</span>
-              )}
+            <h2 className="text-white font-black text-xl leading-tight">{data?.info?.name || teamName}</h2>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1">
+              {data?.info?.country && <span className="text-[11px] text-gray-400">🌍 {data.info.country}</span>}
+              {data?.info?.founded && <span className="text-[11px] text-gray-600">Fundado {data.info.founded}</span>}
+              {data?.venue?.name   && <span className="text-[11px] text-emerald-400">🏟 {data.venue.name}</span>}
+              {data?.venue?.city   && <span className="text-[11px] text-gray-600">📍 {data.venue.city}</span>}
             </div>
           </div>
           <button
             onClick={onClose}
             className="shrink-0 w-9 h-9 rounded-xl bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-400 hover:text-white transition-colors text-lg font-bold"
-          >
-            ✕
-          </button>
+          >✕</button>
         </div>
 
-        {/* ── Loading ── */}
-        {isLoading && (
-          <div className="p-12 text-center text-gray-400 animate-pulse">
-            Cargando perfil del equipo…
-          </div>
-        )}
-
-        {/* ── Error ── */}
-        {isError && !isLoading && (
-          <div className="p-8 text-center">
-            <p className="text-3xl mb-2">⚠️</p>
-            <p className="text-gray-500 text-sm">No se pudo cargar el perfil del equipo</p>
-          </div>
-        )}
-
-        {/* ── Demo mode ── */}
-        {data?.demo && (
-          <div className="p-12 text-center">
-            <p className="text-4xl mb-3">🔑</p>
-            <p className="text-gray-300 font-semibold">Perfil disponible con API key</p>
-            <p className="text-gray-600 text-xs mt-2">
-              Configura API_FOOTBALL_KEY para ver estadio, plantilla y fichajes en tiempo real
-            </p>
-          </div>
-        )}
-
-        {/* ── Full data ── */}
+        {/* ── Stadium bar ── */}
         {data && !data.demo && (
-          <div className="flex-1 overflow-y-auto">
+          <div className="grid grid-cols-3 divide-x divide-gray-800/50 border-b border-gray-800/40 shrink-0">
+            {[
+              ['🏟', 'Estadio',   data.venue?.name     || '—'],
+              ['🏙️', 'Ciudad',    data.venue?.city     || '—'],
+              ['👥', 'Capacidad', data.venue?.capacity ? data.venue.capacity.toLocaleString() : '—'],
+            ].map(([icon, label, val]) => (
+              <div key={label} className="px-4 py-2.5 text-center">
+                <p className="text-sm text-gray-200 font-semibold truncate">{icon} {val}</p>
+                <p className="text-[9px] text-gray-600 uppercase tracking-widest mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
+        )}
 
-            {/* Stadium stats bar */}
-            <div className="grid grid-cols-3 divide-x divide-gray-800/50 border-b border-gray-800/40 shrink-0">
-              {[
-                ['🏟', 'Estadio',   data.venue?.name     || '—'],
-                ['🏙️', 'Ciudad',    data.venue?.city     || '—'],
-                ['👥', 'Capacidad', data.venue?.capacity ? data.venue.capacity.toLocaleString() : '—'],
-              ].map(([icon, label, val]) => (
-                <div key={label} className="px-4 py-3 text-center">
-                  <p className="text-sm text-gray-200 font-semibold">{icon} {val}</p>
-                  <p className="text-[10px] text-gray-600 uppercase tracking-widest mt-0.5">{label}</p>
+        {/* ── Tab bar ── */}
+        {data && !data.demo && (
+          <div className="flex border-b border-gray-800/50 shrink-0 bg-[#040a14]">
+            {[
+              { id: 'squad',    label: `👤 Plantilla (${data.squad?.length ?? 0})` },
+              { id: 'recent',   label: `📅 Partidos (${data.recent?.length ?? 0})` },
+              { id: 'transfers',label: `🔄 Fichajes (${data.transfers?.length ?? 0})` },
+            ].map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)}
+                className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap ${
+                  tab === t.id
+                    ? 'border-emerald-400 text-emerald-300 bg-emerald-950/20'
+                    : 'border-transparent text-gray-500 hover:text-gray-200 hover:bg-white/[0.03]'
+                }`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ── Body ── */}
+        <div className="flex-1 overflow-y-auto">
+
+          {isLoading && (
+            <div className="p-12 text-center text-gray-500 animate-pulse">Cargando perfil del equipo…</div>
+          )}
+
+          {isError && !isLoading && (
+            <div className="p-8 text-center">
+              <p className="text-3xl mb-2">⚠️</p>
+              <p className="text-gray-500 text-sm">No se pudo cargar el perfil</p>
+            </div>
+          )}
+
+          {data?.demo && (
+            <div className="p-12 text-center">
+              <p className="text-4xl mb-3">🔑</p>
+              <p className="text-gray-300 font-semibold">Perfil disponible con API key</p>
+              <p className="text-gray-600 text-xs mt-2">
+                Configura API_FOOTBALL_KEY para ver estadio, plantilla completa y fichajes en tiempo real
+              </p>
+            </div>
+          )}
+
+          {/* ── Squad tab ── */}
+          {data && !data.demo && tab === 'squad' && (
+            <div>
+              {/* Header row */}
+              <div className="flex items-center gap-2.5 px-4 py-2 border-b border-gray-800/40 bg-black/20 text-[9px] text-gray-600 uppercase tracking-widest font-bold shrink-0">
+                <div className="w-8 shrink-0" />
+                <div className="w-4 shrink-0" />
+                <div className="flex-1">Jugador / Nac.</div>
+                <div className="flex gap-3 shrink-0">
+                  <span className="w-9 text-center">PJ</span>
+                  <span className="w-6 text-center">G</span>
+                  <span className="w-6 text-center">A</span>
+                  <span className="w-20 text-center">Nivel %</span>
+                </div>
+                <span className="w-10 shrink-0 ml-1 text-center">Pos</span>
+                <span className="w-4" />
+              </div>
+
+              {data.squad.length === 0 && (
+                <p className="px-4 py-6 text-sm text-gray-600 text-center">Sin datos de plantilla para esta temporada</p>
+              )}
+
+              {POS_ORDER.map(pos => {
+                const players = data.squad.filter(p => p.position === pos)
+                if (!players.length) return null
+                return (
+                  <div key={pos}>
+                    <div className={`px-4 py-2 text-[9px] font-black uppercase tracking-widest border-b border-t border-gray-800/30 ${POS_COLOR[pos]}`}>
+                      {POS_LABEL[pos]} — {players.length}
+                    </div>
+                    {players.map(p => (
+                      <PlayerCard
+                        key={p.id}
+                        p={p}
+                        expanded={expandedPlayer === p.id}
+                        onToggle={() => togglePlayer(p.id)}
+                      />
+                    ))}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* ── Recent matches tab ── */}
+          {data && !data.demo && tab === 'recent' && (
+            <div>
+              {data.recent.length === 0 ? (
+                <p className="px-4 py-6 text-sm text-gray-600 text-center">Sin partidos recientes disponibles</p>
+              ) : data.recent.map((m, i) => (
+                <div key={i} className="flex items-center gap-3 px-5 py-3 border-b border-gray-800/20 hover:bg-white/[0.02]">
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded text-white min-w-[20px] text-center ${RESULT_CLS[m.result] ?? 'bg-gray-700'}`}>
+                    {m.result}
+                  </span>
+                  <span className="text-[10px] text-gray-600 w-4 shrink-0">{m.home_away}</span>
+                  {m.opponent_logo && <img src={m.opponent_logo} alt="" className="w-6 h-6 object-contain shrink-0" />}
+                  <span className="text-sm text-gray-200 flex-1 truncate">{m.opponent}</span>
+                  <span className="text-sm font-black font-mono text-white shrink-0">{m.score}</span>
+                  {m.competition && <span className="text-[10px] text-gray-600 shrink-0 hidden sm:block">{m.competition}</span>}
+                  {m.date && <span className="text-[10px] text-gray-700 shrink-0">{m.date.slice(0, 10)}</span>}
                 </div>
               ))}
             </div>
+          )}
 
-            {/* Two-column body */}
-            <div className="grid grid-cols-2 divide-x divide-gray-800/50">
-
-              {/* LEFT: recent matches + transfers */}
-              <div className="flex flex-col">
-                {/* Recent matches */}
-                <div className="px-4 py-2.5 border-b border-gray-800/40 bg-black/20">
-                  <p className="text-[10px] text-gray-500 uppercase tracking-widest font-black">
-                    Últimos partidos
-                  </p>
-                </div>
-
-                {data.recent.length === 0 ? (
-                  <p className="px-4 py-4 text-[11px] text-gray-600">Sin datos de partidos recientes</p>
-                ) : data.recent.map((m, i) => (
-                  <div key={i} className="flex items-center gap-2.5 px-4 py-2.5 border-b border-gray-800/20 hover:bg-white/[0.02]">
-                    <span className={`text-[10px] font-black px-2 py-0.5 rounded min-w-[20px] text-center ${RESULT_CLS[m.result] ?? 'bg-gray-700 text-white'}`}>
-                      {m.result}
-                    </span>
-                    <span className="text-[9px] text-gray-600 w-4 shrink-0">{m.home_away}</span>
-                    {m.opponent_logo && (
-                      <img src={m.opponent_logo} alt="" className="w-5 h-5 object-contain shrink-0" />
-                    )}
-                    <span className="text-xs text-gray-300 flex-1 truncate">{m.opponent}</span>
-                    <span className="text-xs font-bold font-mono text-white shrink-0">{m.score}</span>
-                    {m.date && (
-                      <span className="text-[9px] text-gray-700 shrink-0">{m.date.slice(0, 10)}</span>
-                    )}
+          {/* ── Transfers tab ── */}
+          {data && !data.demo && tab === 'transfers' && (
+            <div>
+              {data.transfers.length === 0 ? (
+                <p className="px-4 py-6 text-sm text-gray-600 text-center">Sin fichajes registrados</p>
+              ) : data.transfers.map((t, i) => (
+                <div key={i} className="flex items-center gap-3 px-5 py-2.5 border-b border-gray-800/20 hover:bg-white/[0.02]">
+                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded shrink-0 ${
+                    t.type === 'Free' ? 'bg-blue-900/60 text-blue-300' :
+                    t.type === 'Loan' ? 'bg-amber-900/60 text-amber-300' :
+                    'bg-emerald-900/60 text-emerald-300'
+                  }`}>{t.type || '—'}</span>
+                  <span className="text-xs text-gray-200 flex-1 truncate font-medium">{t.player}</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[10px] text-gray-600">{t.team_out ?? '—'}</span>
+                    <span className="text-[10px] text-gray-700">→</span>
+                    <span className="text-[10px] text-gray-300">{t.team_in ?? '—'}</span>
                   </div>
-                ))}
-
-                {/* Transfers */}
-                {data.transfers.length > 0 && (
-                  <>
-                    <div className="px-4 py-2.5 border-t border-b border-gray-800/40 bg-black/20 mt-2">
-                      <p className="text-[10px] text-gray-500 uppercase tracking-widest font-black">
-                        Fichajes recientes
-                      </p>
-                    </div>
-                    {data.transfers.slice(0, 10).map((t, i) => (
-                      <div key={i} className="flex items-center gap-2.5 px-4 py-2 border-b border-gray-800/20 hover:bg-white/[0.02]">
-                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded shrink-0 ${TRANSFER_CLS[t.type] ?? TRANSFER_CLS.N}`}>
-                          {t.type || '—'}
-                        </span>
-                        <span className="text-xs text-gray-300 flex-1 truncate">{t.player}</span>
-                        <span className="text-[9px] text-gray-600 shrink-0 truncate max-w-[80px]">{t.team_in ?? t.team_out ?? '—'}</span>
-                        {t.date && (
-                          <span className="text-[9px] text-gray-700 shrink-0">{t.date.slice(0, 7)}</span>
-                        )}
-                      </div>
-                    ))}
-                  </>
-                )}
-              </div>
-
-              {/* RIGHT: squad grouped by position */}
-              <div className="flex flex-col">
-                <div className="px-4 py-2.5 border-b border-gray-800/40 bg-black/20">
-                  <p className="text-[10px] text-gray-500 uppercase tracking-widest font-black">
-                    Plantilla ({data.squad.length} jugadores)
-                  </p>
+                  {t.date && <span className="text-[10px] text-gray-700 shrink-0">{t.date.slice(0, 7)}</span>}
                 </div>
-
-                {data.squad.length === 0 ? (
-                  <p className="px-4 py-4 text-[11px] text-gray-600">Sin datos de plantilla</p>
-                ) : ['Goalkeeper', 'Defender', 'Midfielder', 'Attacker'].map(pos => {
-                  const players = data.squad.filter(p => p.position === pos)
-                  if (!players.length) return null
-                  return (
-                    <div key={pos}>
-                      <div className={`px-4 py-1.5 text-[9px] font-black uppercase tracking-widest border-b border-gray-800/30 bg-black/30 ${POS_COLOR[pos]}`}>
-                        {POS_LABEL[pos]}
-                      </div>
-                      {players.map((p, i) => (
-                        <div key={i} className="flex items-center gap-2.5 px-4 py-2 border-b border-gray-800/20 hover:bg-white/[0.02]">
-                          {p.photo ? (
-                            <img
-                              src={p.photo}
-                              alt=""
-                              className="w-7 h-7 rounded-full object-cover shrink-0 bg-gray-800"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div className="w-7 h-7 rounded-full bg-gray-800 shrink-0 flex items-center justify-center text-[10px] text-gray-600 font-bold">
-                              {p.number ?? '?'}
-                            </div>
-                          )}
-                          <span className="text-[10px] text-gray-600 w-5 shrink-0 text-center font-mono">
-                            {p.number ?? '—'}
-                          </span>
-                          <span className="text-xs text-gray-200 flex-1 truncate">{p.name}</span>
-                          {p.age && (
-                            <span className="text-[10px] text-gray-600 shrink-0">{p.age}a</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )
-                })}
-              </div>
-
+              ))}
             </div>
-          </div>
-        )}
+          )}
+
+        </div>
       </div>
     </div>
   )
